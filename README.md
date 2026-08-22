@@ -13,11 +13,13 @@ aos experimentos científicos do trabalho.
   implementa F1/F2/F3 e `lpi.py` implementa a adaptação unidimensional LPI*.
 - `examples/`: demonstrações incrementais originais: chuva quente, fase de
   gelo, fase mista e diagnóstico de relâmpagos.
-- `experiments/`: espaço reservado aos experimentos científicos deste trabalho.
+- `experiments/`: espaço reservado aos experimentos científicos deste trabalho e aos testes de consistência de parametrizações.
 - `tests/`: testes de conservação dos três passos demonstrativos.
 - `outputs/baseline/`: resultados dos casos demonstrativos originais.
 - `outputs/group1/`, `outputs/group2/` e `outputs/group3/`: resultados futuros
   dos grupos de experimentos científicos.
+- `experiments/lightning_parameterization_consistency/`: validações numéricas de McCaul e LPI*.
+- `outputs/lightning_parameterization_consistency/`: figuras desses testes de consistência.
 - `docs/`: planejamento e documentação de apoio.
 - `manuscript/`: material associado ao artigo.
 

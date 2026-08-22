@@ -54,8 +54,9 @@ class McCaulTests(unittest.TestCase):
         self.assertAlmostEqual(result.z_minus15_m, 1500.0)
         self.assertAlmostEqual(result.w_minus15_m_s, 3.0)
         self.assertAlmostEqual(result.qg_minus15_kgkg, 2.0e-3)
-        self.assertAlmostEqual(result.graupel_flux_minus15, 6.0e-3)
-        self.assertAlmostEqual(result.f1, 0.042 * 6.0e-3)
+        # 2e-3 kg/kg = 2 g/kg; the calibrated flux is 3 * 2 = 6.
+        self.assertAlmostEqual(result.graupel_flux_minus15, 6.0)
+        self.assertAlmostEqual(result.f1, 0.042 * 6.0)
 
     def test_doubling_w_doubles_f1(self):
         profiles = base_profiles()

@@ -16,13 +16,16 @@ lightning/
 `mccaul.py` implementa independentemente:
 
 ```text
-F1 = 0.042 [w qg]_-15°C
+F1 = 0.042 [w (1000 qg)]_-15°C
 F2 = 0.20 ∫ rho (qg + qs + qi) dz
 F3 = 0.95 F1 + 0.05 F2
 ```
 
 F1 utiliza somente graupel e movimento ascendente interpolados exatamente na
-isoterma de -15 °C. F2 usa a profundidade completa da coluna e a coordenada
+isoterma de -15 °C. A API recebe `qg` em kg kg⁻¹ (SI) e o converte
+internamente para g kg⁻¹ antes de aplicar o coeficiente empírico 0,042,
+preservando a convenção numérica empregada na calibração. F2 usa a profundidade
+completa da coluna e a coordenada
 vertical real. Se -15 °C estiver fora do domínio, F1 e F3 são inválidos (`NaN`),
 sem extrapolação ou escolha do nível mais próximo.
 

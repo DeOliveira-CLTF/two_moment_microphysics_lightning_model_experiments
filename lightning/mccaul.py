@@ -27,6 +27,7 @@ from ._validation import (
 
 TARGET_ISOTHERM_C = -15.0
 F1_COEFFICIENT = 0.042
+KGKG_TO_GKG = 1000.0
 F2_COEFFICIENT = 0.20
 F3_F1_WEIGHT = 0.95
 F3_F2_WEIGHT = 0.05
@@ -37,7 +38,9 @@ ArrayLike = Union[Sequence[float], np.ndarray]
 class McCaulResult:
     """Auditable result from the three McCaul lightning-threat proxies.
 
-    ``f1`` is based on upward graupel flux at -15 degC; ``f2`` is based
+    ``f1`` is based on upward graupel flux at -15 degC, with graupel mixing
+    ratio expressed in g kg-1 as used by the published calibration;
+    ``graupel_flux_minus15`` therefore has units m s-1 g kg-1. ``f2`` is based
     on vertically integrated solid hydrometeor mass; and ``f3`` is their
     published weighted combination. These are calibrated diagnostic values,
     not an absolute flash rate validated for this column model.
@@ -73,12 +76,15 @@ def compute_mccaul(
 
     The implemented equations are::
 
-        F1 = 0.042 * max(w_-15, 0) * qg_-15
+        F1 = 0.042 * max(w_-15, 0) * (1000 * qg_-15)
         F2 = 0.20 * integral rho * (qg + qs + qi) dz
         F3 = 0.95 * F1 + 0.05 * F2
 
     ``w`` and ``qg`` are linearly interpolated in temperature coordinates at
-    exactly -15 degC. If that isotherm is absent, F1 and F3 are NaN and
+    exactly -15 degC. Although the public ``qg`` input is SI [kg kg-1], it is
+    converted internally to g kg-1 before applying the empirical F1
+    coefficient, preserving the numerical convention of the calibration.
+    If that isotherm is absent, F1 and F3 are NaN and
     ``valid_f1`` is false; no nearest-level fallback or extrapolation is used.
     The empirical coefficients are preserved for relative use and are not
     asserted to yield an absolute flash rate in this model configuration.
@@ -128,7 +134,8 @@ def compute_mccaul(
     z_minus15_m, values = isotherm
     w_minus15 = values["w_m_s"]
     qg_minus15 = values["qg_kgkg"]
-    graupel_flux = max(w_minus15, 0.0) * qg_minus15
+    qg_minus15_gkg = KGKG_TO_GKG * qg_minus15
+    graupel_flux = max(w_minus15, 0.0) * qg_minus15_gkg
     f1 = F1_COEFFICIENT * graupel_flux
     f3 = F3_F1_WEIGHT * f1 + F3_F2_WEIGHT * f2
     return McCaulResult(

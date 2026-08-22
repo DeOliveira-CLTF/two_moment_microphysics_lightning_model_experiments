@@ -311,30 +311,51 @@ class ColunaFaseMista(ColunaFaseGelo):
     # LOOP PRINCIPAL (sobrescreve para tambem salvar qs,Ns,qg,Ng)
     # -------------------------------------------------------------
     def integrar(self, tempo_total_s, dt=5.0, salvar_a_cada=30.0):
-        n_passos = int(tempo_total_s / dt)
-        proxima_gravacao = 0.0
+        if tempo_total_s < 0.0:
+            raise ValueError("tempo_total_s deve ser nao negativo")
+        if dt <= 0.0:
+            raise ValueError("dt deve ser positivo")
+        if salvar_a_cada <= 0.0:
+            raise ValueError("salvar_a_cada deve ser positivo")
+
         self.precip_superficie_mm = 0.0
 
-        for passo in range(n_passos):
-            t = passo * dt
-            self._passo_processos_locais(dt)
-            precip = self._passo_sedimentacao(dt)
-            self.precip_superficie_mm += precip
+        def salvar_estado(t):
+            self.historico["t"].append(float(t))
+            self.historico["qc"].append(self.qc.copy())
+            self.historico["qr"].append(self.qr.copy())
+            self.historico["Nc"].append(self.Nc.copy())
+            self.historico["Nr"].append(self.Nr.copy())
+            self.historico["qv"].append(self.qv.copy())
+            self.historico["T"].append(self.T.copy())
+            self.historico["qi"].append(self.qi.copy())
+            self.historico["Ni"].append(self.Ni.copy())
+            self.historico["qs"].append(self.qs.copy())
+            self.historico["Ns"].append(self.Ns.copy())
+            self.historico["qg"].append(self.qg.copy())
+            self.historico["Ng"].append(self.Ng.copy())
 
-            if t >= proxima_gravacao:
-                self.historico["t"].append(t)
-                self.historico["qc"].append(self.qc.copy())
-                self.historico["qr"].append(self.qr.copy())
-                self.historico["Nc"].append(self.Nc.copy())
-                self.historico["Nr"].append(self.Nr.copy())
-                self.historico["qv"].append(self.qv.copy())
-                self.historico["T"].append(self.T.copy())
-                self.historico["qi"].append(self.qi.copy())
-                self.historico["Ni"].append(self.Ni.copy())
-                self.historico["qs"].append(self.qs.copy())
-                self.historico["Ns"].append(self.Ns.copy())
-                self.historico["qg"].append(self.qg.copy())
-                self.historico["Ng"].append(self.Ng.copy())
-                proxima_gravacao += salvar_a_cada
+        # O estado inicial deve ser associado a t=0 antes de qualquer processo.
+        tempo_integrado = 0.0
+        proxima_gravacao = float(salvar_a_cada)
+        salvar_estado(tempo_integrado)
+
+        tolerancia_tempo = 1.0e-12 * max(1.0, float(tempo_total_s))
+        while tempo_integrado < tempo_total_s - tolerancia_tempo:
+            dt_passo = min(float(dt), float(tempo_total_s) - tempo_integrado)
+            self._passo_processos_locais(dt_passo)
+            precip = self._passo_sedimentacao(dt_passo)
+            self.precip_superficie_mm += precip
+            tempo_integrado += dt_passo
+
+            if tempo_integrado + tolerancia_tempo >= proxima_gravacao:
+                salvar_estado(tempo_integrado)
+                while proxima_gravacao <= tempo_integrado + tolerancia_tempo:
+                    proxima_gravacao += salvar_a_cada
+
+        # Inclui sempre o estado final, sem duplicar quando ele coincide com
+        # um instante regular de gravacao.
+        if abs(self.historico["t"][-1] - tempo_total_s) > tolerancia_tempo:
+            salvar_estado(tempo_total_s)
 
         return self.historico
