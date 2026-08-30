@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Driver geral do modelo 2D + microfisica de dois momentos.
 
-Use este script para testes manuais. Os Grupos 1-3 possuem drivers proprios em
-``experiments/`` para garantir que cada matriz experimental seja reproduzivel.
+Use este script para testes manuais. Os diretorios experiments/group*/ estao preparados para que
+cada grupo implemente seu proprio driver usando a API comum.
 """
 
 import argparse

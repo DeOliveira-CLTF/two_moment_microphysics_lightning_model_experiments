@@ -5,3 +5,12 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.log
+# Resultados numericos gerados
+outputs/**/*.npz
+
+# Windows / Office
+desktop.ini
+~$*.docx
+
+# Pytest
+.pytest_cache/
