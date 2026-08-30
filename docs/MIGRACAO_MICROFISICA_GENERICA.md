@@ -115,3 +115,29 @@ from microfisica.coluna_generica import passo_microfisica_coluna
 ```
 
 e mova a chamada da microfisica para dentro do loop temporal, depois da atualizacao dinamica dos campos atmosfericos.
+
+## Caminho dinamico 2D
+
+A pasta `dinamica_2d/` contem a versao modular do nucleo dinamico 2D dos scripts do professor. Para experimentos em que o movimento vertical deve alterar a evolucao microfisica, use:
+
+```python
+from dinamica_2d import ConfiguracaoDinamica2D, rodar_thompson_2d
+
+config = ConfiguracaoDinamica2D(
+    nx=40,
+    nz=60,
+    tempo_total_s=10 * 60,
+    microfisica="thompson",
+    bolha_k=3.0,
+    evap_chuva=True,
+)
+resultado = rodar_thompson_2d(config)
+```
+
+Nesse modo, `w` e calculado pelo nucleo dinamico e participa da adveccao, do empuxo e do transporte dos hidrometeoros. Portanto, esse conjunto deve ser identificado nos resultados como experimento dinamico/acoplado, diferente dos experimentos offline de coluna.
+
+Para manter rastreabilidade com os arquivos do professor:
+
+- `examples/nuvem_2d.py` mantem o driver original simplificado como referencia.
+- `examples/nuvem_2d_thompson.py` e o driver acoplado recomendado para o repositorio do grupo.
+- `dinamica_2d/nucleo.py` e o modulo que deve ser importado por novos scripts em `experiments/`.

@@ -72,3 +72,25 @@ Teste adicional:
 ```bash
 python tests/test_coluna_generica.py
 ```
+
+## Nucleo dinamico 2D do professor
+
+O nucleo dinamico dos scripts `nuvem_2d.py` e `nuvem_2d_thompson.py` foi incorporado de forma modular em `dinamica_2d/`.
+
+- `dinamica_2d/nucleo.py`: API reutilizavel para experimentos acoplados.
+- `examples/nuvem_2d.py`: driver de referencia do modelo 2D original com microfisica simplificada.
+- `examples/nuvem_2d_thompson.py`: driver acoplado ao esquema Thompson completo usando `dinamica_2d` e `microfisica.coluna_generica`.
+
+Import recomendado para novos experimentos dinamicos:
+
+```python
+from dinamica_2d import ConfiguracaoDinamica2D, rodar_thompson_2d
+```
+
+Exemplo rapido:
+
+```bash
+python examples/nuvem_2d_thompson.py --tempo 5 --nx 30 --nz 45 --cenario teste_rapido
+```
+
+Use `ColunaFaseMista` para experimentos offline de coluna e `rodar_thompson_2d` para experimentos em que o movimento vertical resolvido deve alterar a evolucao microfisica.
