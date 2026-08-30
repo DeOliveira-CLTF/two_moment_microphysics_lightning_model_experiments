@@ -1,0 +1,54 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "gsdebug",
+            "name": "launch-debug",
+            "request": "launch",
+            "with_debug": true,
+            "debug_port": 20001,
+            "listen_port": 23337,
+            "detach_shell": true,
+            "root_path": "${workspaceFolder}",
+            "execute_path": {
+                "win32": ""
+            },
+            "command_line": "/e /${relativeFile} --require all",
+            "program": "${command:LaunchDebug}"
+        },
+        {
+            "type": "gsdebug",
+            "name": "launch-release",
+            "request": "launch",
+            "with_debug": false,
+            "debug_port": 20001,
+            "root_path": "${workspaceFolder}",
+            "execute_path": {
+                "win32": ""
+            },
+            "command_line": "/e /${relativeFile}",
+            "program": "${command:LaunchRelease}"
+        },
+        {
+            "type": "gsdebug",
+            "name": "attach-select",
+            "request": "attach",
+            "debug_port": 20001,
+            "listen_port": 23337,
+            "root_path": "${workspaceFolder}",
+            "program": "${command:AttachSelect}"
+        },
+        {
+            "type": "gsdebug",
+            "name": "attach-input",
+            "request": "attach",
+            "debug_port": 20001,
+            "listen_port": 23337,
+            "root_path": "${workspaceFolder}",
+            "program": "${command:AttachInput}"
+        }
+    ]
+}

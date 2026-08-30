@@ -54,3 +54,21 @@ python tests/teste_conservacao_passo3.py
 Os diretórios em `experiments/` e `outputs/group*/` estão apenas preparados
 para trabalho futuro; esta organização não inclui os novos experimentos dos
 Grupos 1, 2 ou 3.
+
+## Esquema com dinamica externa
+
+Experimentos existentes que usam `ColunaFaseMista` podem continuar iguais. Para novos experimentos com parametrizacao de cumulus ou movimento vertical simulado fora da coluna 1D, importe:
+
+```python
+from microfisica.coluna_generica import passo_microfisica_coluna
+```
+
+No loop temporal do experimento, depois de atualizar/advecionar `T`, `p`, `rho`, `qv` e as categorias hidrometeorologicas, chame a funcao em cada coluna vertical e grave os retornos. A funcao resolve os processos microfisicos locais do Passo 3; sedimentacao, adveccao e calculo de `w` continuam no script do experimento.
+
+Guia detalhado: `docs/MIGRACAO_MICROFISICA_GENERICA.md`.
+
+Teste adicional:
+
+```bash
+python tests/test_coluna_generica.py
+```
