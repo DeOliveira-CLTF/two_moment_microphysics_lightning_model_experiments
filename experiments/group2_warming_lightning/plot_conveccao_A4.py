@@ -56,10 +56,7 @@ Executando a partir de:
 
 pode-se usar:
 
-python plot_conveccao.py \
-    --input "outputs/group2/varredura_bolha/SCAN_B_10K/resultados_SCAN_B_10K.npz" \
-    --output-prefix "outputs/group2/varredura_bolha/SCAN_B_10K/figura_artigo_SCAN_B_10K" \
-    --times 5 10 15 20 30
+python plot_conveccao.py --input "outputs/group2/varredura_bolha/SCAN_B_10K/resultados_SCAN_B_10K.npz" --output-prefix "outputs/group2/varredura_bolha/SCAN_B_10K/figura_artigo_SCAN_B_10K" --times 10 15 20 30 40
 
 Os caminhos relativos sao automaticamente interpretados a partir da
 RAIZ DO REPOSITORIO.
@@ -86,6 +83,32 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
+
+
+# ============================================================================
+# CONFIGURACAO GRAFICA PARA ARTIGO EM A4
+# ============================================================================
+
+# A4 em orientacao paisagem, em polegadas.
+# 297 x 210 mm = 11.69 x 8.27 in.
+A4_LANDSCAPE_IN = (11.69, 8.27)
+
+# Tamanhos pensados para permanecerem legiveis quando a figura for impressa
+# em uma folha A4 inteira.
+plt.rcParams.update(
+    {
+        "font.size": 8.0,
+        "axes.titlesize": 8.7,
+        "axes.labelsize": 8.0,
+        "xtick.labelsize": 7.2,
+        "ytick.labelsize": 7.2,
+        "legend.fontsize": 8.0,
+        "figure.dpi": 150,
+        "savefig.dpi": 300,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+    }
+)
 
 
 # ============================================================================
@@ -785,7 +808,7 @@ def plot_snapshot(
         ax.clabel(
             contornos_w,
             inline=True,
-            fontsize=7,
+            fontsize=6.2,
             fmt=lambda valor: f"{valor:g}",
         )
 
@@ -908,8 +931,9 @@ def plot_snapshot(
     ax.set_title(
         f"({letra})  {tempo:.0f} min",
         loc="left",
-        fontsize=10,
+        fontsize=8.7,
         fontweight="bold",
+        pad=4.0,
     )
 
     # ------------------------------------------------------------------------
@@ -945,7 +969,7 @@ def plot_snapshot(
         transform=ax.transAxes,
         horizontalalignment="right",
         verticalalignment="top",
-        fontsize=7.6,
+        fontsize=6.6,
         bbox={
             "boxstyle": "round,pad=0.25",
             "facecolor": "white",
@@ -969,7 +993,15 @@ def plot_snapshot(
     )
 
     ax.set_xlabel(
-        r"$x$ (km)"
+        r"$x$ (km)",
+        fontsize=8.0,
+        labelpad=2.0,
+    )
+
+    ax.tick_params(
+        axis="both",
+        labelsize=7.2,
+        pad=2.0,
     )
 
     return pcm
@@ -1209,43 +1241,135 @@ def gerar_figura_artigo(
     )
 
     # ------------------------------------------------------------------------
-    # Figura
+    # Figura em A4 paisagem
     # ------------------------------------------------------------------------
 
-    largura = max(
-        14.0,
-        3.15 * n_snapshots,
-    )
-
+    # A figura final possui exatamente o tamanho fisico de uma folha A4 em
+    # orientacao paisagem. Nao usamos bbox_inches="tight" no salvamento para
+    # nao alterar esse tamanho fisico.
     fig = plt.figure(
-        figsize=(
-            largura,
-            10.2,
-        ),
-        constrained_layout=True,
+        figsize=A4_LANDSCAPE_IN,
     )
 
-    gs = gridspec.GridSpec(
+    # Estrutura vertical:
+    #
+    #   linha 0 -> legenda dos snapshots
+    #   linha 1 -> snapshots + colorbar vertical a direita
+    #   linha 2 -> serie temporal F3
+    #   linha 3 -> serie temporal LPI*
+    #
+    # A legenda fica em uma linha propria para nunca sobrepor os titulos.
+    outer = fig.add_gridspec(
         nrows=4,
-        ncols=n_snapshots,
-        figure=fig,
+        ncols=1,
         height_ratios=[
-            4.2,
-            0.85,
-            0.85,
-            0.85,
+            0.34,
+            4.25,
+            0.90,
+            0.90,
         ],
+        left=0.060,
+        right=0.985,
+        bottom=0.070,
+        top=0.985,
+        hspace=0.30,
     )
 
     # ------------------------------------------------------------------------
-    # Snapshots
+    # Linha exclusiva da legenda
     # ------------------------------------------------------------------------
+
+    ax_legenda = fig.add_subplot(
+        outer[0, 0]
+    )
+
+    ax_legenda.axis(
+        "off"
+    )
+
+    handles = [
+
+        Line2D(
+            [0],
+            [0],
+            color="black",
+            linewidth=1.1,
+            label=r"$w$ = 2, 5, 10 m s$^{-1}$",
+        ),
+
+        Line2D(
+            [0],
+            [0],
+            color="forestgreen",
+            linestyle="-",
+            linewidth=1.5,
+            label="0 °C",
+        ),
+
+        Line2D(
+            [0],
+            [0],
+            color="firebrick",
+            linestyle="--",
+            linewidth=1.5,
+            label="-15 °C",
+        ),
+
+        Line2D(
+            [0],
+            [0],
+            color="royalblue",
+            linestyle=":",
+            linewidth=1.5,
+            label="-20 °C",
+        ),
+
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            markersize=6.5,
+            markerfacecolor="gold",
+            markeredgecolor="black",
+            linestyle="None",
+            label=(
+                rf"$F_3 \geq {f3_threshold:g}$ "
+                "na isoterma de -15 °C"
+            ),
+        ),
+    ]
+
+    ax_legenda.legend(
+        handles=handles,
+        loc="center",
+        ncol=5,
+        frameon=False,
+        fontsize=8.1,
+        handlelength=2.3,
+        handletextpad=0.55,
+        columnspacing=1.25,
+        borderaxespad=0.0,
+    )
+
+    # ------------------------------------------------------------------------
+    # Snapshots + colorbar lateral
+    # ------------------------------------------------------------------------
+
+    # A ultima coluna e reservada exclusivamente para a colorbar.
+    snapshots_grid = gridspec.GridSpecFromSubplotSpec(
+        nrows=1,
+        ncols=n_snapshots + 1,
+        subplot_spec=outer[1, 0],
+        width_ratios=(
+            [1.0] * n_snapshots
+            + [0.070]
+        ),
+        wspace=0.065,
+    )
 
     axes_snapshots = []
 
-    letras = (
-        "abcdefghijklmnopqrstuvwxyz"
-    )
+    letras = "abcdefghijklmnopqrstuvwxyz"
 
     pcm = None
 
@@ -1253,9 +1377,18 @@ def gerar_figura_artigo(
         indices_snapshots
     ):
 
-        ax = fig.add_subplot(
-            gs[0, i]
-        )
+        if i == 0:
+
+            ax = fig.add_subplot(
+                snapshots_grid[0, i]
+            )
+
+        else:
+
+            ax = fig.add_subplot(
+                snapshots_grid[0, i],
+                sharey=axes_snapshots[0],
+            )
 
         axes_snapshots.append(
             ax
@@ -1282,7 +1415,9 @@ def gerar_figura_artigo(
         if i == 0:
 
             ax.set_ylabel(
-                "Altura (km)"
+                "Altura (km)",
+                fontsize=8.2,
+                labelpad=3.0,
             )
 
         else:
@@ -1291,103 +1426,48 @@ def gerar_figura_artigo(
                 labelleft=False
             )
 
-    # ------------------------------------------------------------------------
-    # Legenda dos snapshots
-    # ------------------------------------------------------------------------
-
-    handles = [
-
-        Line2D(
-            [0],
-            [0],
-            color="black",
-            linewidth=1.0,
-            label=(
-                r"$w$ = 2, 5, 10 m s$^{-1}$"
-            ),
-        ),
-
-        Line2D(
-            [0],
-            [0],
-            color="forestgreen",
-            linestyle="-",
-            linewidth=1.4,
-            label="0 °C",
-        ),
-
-        Line2D(
-            [0],
-            [0],
-            color="firebrick",
-            linestyle="--",
-            linewidth=1.4,
-            label="-15 °C",
-        ),
-
-        Line2D(
-            [0],
-            [0],
-            color="royalblue",
-            linestyle=":",
-            linewidth=1.4,
-            label="-20 °C",
-        ),
-
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            markersize=7,
-            markerfacecolor="gold",
-            markeredgecolor="black",
-            linestyle="None",
-            label=(
-                rf"$F_3 \geq {f3_threshold:g}$ "
-                "em -15 °C"
-            ),
-        ),
-    ]
-
-    fig.legend(
-        handles=handles,
-        loc="upper center",
-        bbox_to_anchor=(
-            0.5,
-            1.015,
-        ),
-        ncol=5,
-        fontsize=8.5,
-        frameon=False,
+    # Colorbar vertical na lateral direita.
+    cax = fig.add_subplot(
+        snapshots_grid[0, -1]
     )
-
-    # ------------------------------------------------------------------------
-    # Colorbar
-    # ------------------------------------------------------------------------
 
     cbar = fig.colorbar(
         pcm,
-        ax=axes_snapshots,
-        orientation="horizontal",
-        shrink=0.83,
-        pad=0.035,
-        aspect=50,
+        cax=cax,
+        orientation="vertical",
         extend="max",
     )
 
+    # Rotulo curto para permanecer legivel em A4.
     cbar.set_label(
-        r"Água de nuvem + gelo + neve + graupel, "
-        r"$q_c+q_i+q_s+q_g$ (g kg$^{-1}$)"
+        r"$q_c+q_i+q_s+q_g$ (g kg$^{-1}$)",
+        fontsize=8.1,
+        labelpad=6.0,
     )
 
+    cbar.ax.tick_params(
+        labelsize=7.2,
+        pad=2.0,
+    )
 
-   
     # ------------------------------------------------------------------------
-    # Painel (g): F3
+    # Letras dos dois paineis temporais
+    # ------------------------------------------------------------------------
+
+    letra_f3 = letras[
+        n_snapshots
+    ]
+
+    letra_lpi = letras[
+        n_snapshots + 1
+    ]
+
+    # ------------------------------------------------------------------------
+    # Painel temporal: F3
     # ------------------------------------------------------------------------
 
     ax_f3 = fig.add_subplot(
-        gs[1, :],
+        outer[2, 0],
     )
 
     ax_f3.plot(
@@ -1402,14 +1482,15 @@ def gerar_figura_artigo(
         f3_threshold,
         color="0.25",
         linestyle="--",
-        linewidth=1.1,
+        linewidth=1.0,
         label=(
             rf"Referência = {f3_threshold:g}"
         ),
     )
 
     ax_f3.set_ylabel(
-        r"$F_{3,\max}$"
+        r"$F_{3,\max}$",
+        fontsize=8.2,
     )
 
     ax_f3.set_ylim(
@@ -1417,19 +1498,21 @@ def gerar_figura_artigo(
     )
 
     ax_f3.text(
-        0.005,
-        0.82,
-        "(g)",
+        0.006,
+        0.78,
+        f"({letra_f3})",
         transform=ax_f3.transAxes,
         fontweight="bold",
-        fontsize=10,
+        fontsize=8.7,
     )
 
     ax_f3.legend(
         loc="upper right",
-        fontsize=8,
+        fontsize=7.5,
         frameon=False,
         ncol=2,
+        handlelength=2.0,
+        columnspacing=1.0,
     )
 
     ax_f3.grid(
@@ -1438,16 +1521,19 @@ def gerar_figura_artigo(
     )
 
     ax_f3.tick_params(
-        labelbottom=False
+        axis="both",
+        labelsize=7.2,
+        pad=2.0,
+        labelbottom=False,
     )
 
     # ------------------------------------------------------------------------
-    # Painel (h): LPI*
+    # Painel temporal: LPI*
     # ------------------------------------------------------------------------
 
     ax_lpi = fig.add_subplot(
-        gs[3, :],
-        sharex=ax_topo,
+        outer[3, 0],
+        sharex=ax_f3,
     )
 
     ax_lpi.plot(
@@ -1458,11 +1544,13 @@ def gerar_figura_artigo(
     )
 
     ax_lpi.set_ylabel(
-        r"$LPI^*_{\max}$"
+        r"$LPI^*_{\max}$",
+        fontsize=8.2,
     )
 
     ax_lpi.set_xlabel(
-        "Tempo (min)"
+        "Tempo (min)",
+        fontsize=8.2,
     )
 
     ax_lpi.set_ylim(
@@ -1470,12 +1558,12 @@ def gerar_figura_artigo(
     )
 
     ax_lpi.text(
-        0.005,
-        0.82,
-        "(h)",
+        0.006,
+        0.78,
+        f"({letra_lpi})",
         transform=ax_lpi.transAxes,
         fontweight="bold",
-        fontsize=10,
+        fontsize=8.7,
     )
 
     ax_lpi.grid(
@@ -1483,8 +1571,14 @@ def gerar_figura_artigo(
         alpha=0.45,
     )
 
+    ax_lpi.tick_params(
+        axis="both",
+        labelsize=7.2,
+        pad=2.0,
+    )
+
     # ------------------------------------------------------------------------
-    # Linhas verticais marcando snapshots
+    # Linhas verticais que marcam os tempos dos snapshots
     # ------------------------------------------------------------------------
 
     for idx in indices_snapshots:
@@ -1494,7 +1588,6 @@ def gerar_figura_artigo(
         ]
 
         for ax in (
-            ax_topo,
             ax_f3,
             ax_lpi,
         ):
@@ -1503,13 +1596,9 @@ def gerar_figura_artigo(
                 tempo_snapshot,
                 color="0.80",
                 linestyle=":",
-                linewidth=0.8,
+                linewidth=0.75,
                 zorder=0,
             )
-
-    # ------------------------------------------------------------------------
-    # Limites temporais
-    # ------------------------------------------------------------------------
 
     ax_lpi.set_xlim(
         t_min[0],
@@ -1533,15 +1622,15 @@ def gerar_figura_artigo(
         ".pdf"
     )
 
+    # Nao usar bbox_inches="tight": assim o arquivo mantem o tamanho A4
+    # definido em figsize.
     fig.savefig(
         caminho_png,
         dpi=300,
-        bbox_inches="tight",
     )
 
     fig.savefig(
         caminho_pdf,
-        bbox_inches="tight",
     )
 
     plt.close(

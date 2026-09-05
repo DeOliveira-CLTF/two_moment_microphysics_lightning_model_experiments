@@ -1,0 +1,1 @@
+C:\Users\teixe\anaconda3\python.exe experimento_grupo2_reformulado.py final --b0 10 --b1 14

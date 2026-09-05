@@ -7,6 +7,8 @@ experimentos cientificos:
 
 - aquecimento uniforme do ambiente em temperatura real (Grupo 2);
 - preservacao opcional de umidade relativa no ambiente aquecido;
+- forcamento mecanico externo de levantamento (Grupo 2), aplicado como
+  aceleracao vertical e convertido em tendencia de vorticidade;
 - amplitude e geometria configuraveis da bolha termica;
 - concentracao de goticulas configuravel (Grupo 1);
 - chaves de processos microfisicos (Grupo 3);
@@ -67,6 +69,22 @@ class ConfiguracaoDinamica2D:
     # Experimento de aquecimento.
     delta_t_ambiente_k: float = 0.0
     preservar_rh: bool = True
+
+    # Forcamento mecanico externo de levantamento.
+    #
+    # A amplitude tem unidades de aceleracao vertical [m s-2]. O campo
+    # espacial e gaussiano e sua variacao temporal e uma janela suave
+    # sen^2. O forcamento NAO prescreve w: ele entra na equacao da
+    # vorticidade por meio de d(a_dyn)/dx, e u/w continuam prognosticados.
+    #
+    # O valor zero preserva exatamente o comportamento anterior do nucleo.
+    forc_dyn_amp_m_s2: float = 0.0
+    forc_dyn_x0_m: float | None = None
+    forc_dyn_z0_m: float = 800.0
+    forc_dyn_rx_m: float = 2000.0
+    forc_dyn_rz_m: float = 700.0
+    forc_dyn_inicio_s: float = 0.0
+    forc_dyn_duracao_s: float = 900.0
 
     # Microfisica.
     microfisica: str = "thompson"  # "nenhuma" ou "thompson"
@@ -139,6 +157,53 @@ def validar_configuracao(config: ConfiguracaoDinamica2D) -> None:
         raise ValueError("limites de CFL devem ser positivos")
     if config.cfl_aviso > config.cfl_limite:
         raise ValueError("cfl_aviso nao pode exceder cfl_limite")
+
+    if (
+        not np.isfinite(config.forc_dyn_amp_m_s2)
+        or config.forc_dyn_amp_m_s2 < 0.0
+    ):
+        raise ValueError(
+            "forc_dyn_amp_m_s2 deve ser finito e maior ou igual a zero"
+        )
+
+    for nome in ("forc_dyn_rx_m", "forc_dyn_rz_m"):
+        valor = getattr(config, nome)
+        if not np.isfinite(valor) or valor <= 0.0:
+            raise ValueError(f"{nome} deve ser finito e positivo")
+
+    if not np.isfinite(config.forc_dyn_z0_m) or config.forc_dyn_z0_m < 0.0:
+        raise ValueError("forc_dyn_z0_m deve ser finito e maior ou igual a zero")
+
+    if (
+        not np.isfinite(config.forc_dyn_inicio_s)
+        or config.forc_dyn_inicio_s < 0.0
+    ):
+        raise ValueError(
+            "forc_dyn_inicio_s deve ser finito e maior ou igual a zero"
+        )
+
+    if (
+        not np.isfinite(config.forc_dyn_duracao_s)
+        or config.forc_dyn_duracao_s < 0.0
+    ):
+        raise ValueError(
+            "forc_dyn_duracao_s deve ser finito e maior ou igual a zero"
+        )
+
+    if (
+        config.forc_dyn_amp_m_s2 > 0.0
+        and config.forc_dyn_duracao_s <= 0.0
+    ):
+        raise ValueError(
+            "forc_dyn_duracao_s deve ser positiva quando o forcamento "
+            "dinamico estiver ativo"
+        )
+
+    if (
+        config.forc_dyn_x0_m is not None
+        and not np.isfinite(config.forc_dyn_x0_m)
+    ):
+        raise ValueError("forc_dyn_x0_m deve ser None ou um valor finito")
 
 
 def p_of_z(z_m, escala_m=8000.0):
@@ -352,6 +417,110 @@ def aplicar_bordas(f, zero_grad=True):
         f[:, 0] = 0.0
         f[:, -1] = 0.0
     return f
+
+
+
+def janela_forcamento_dinamico(
+    t_s,
+    inicio_s,
+    duracao_s,
+):
+    """
+    Retorna uma janela temporal suave entre 0 e 1 para o forcamento mecanico.
+
+    A forma usada e sen^2(pi*tau), com tau variando de 0 a 1 durante o
+    intervalo ativo. Assim, o forcamento cresce e decai suavemente, evitando
+    uma descontinuidade temporal no termo-fonte de vorticidade.
+    """
+
+    if duracao_s <= 0.0:
+        return 0.0
+
+    tau = (float(t_s) - float(inicio_s)) / float(duracao_s)
+
+    if tau <= 0.0 or tau >= 1.0:
+        return 0.0
+
+    return float(np.sin(np.pi * tau) ** 2)
+
+
+def campo_forcamento_dinamico(
+    estado: EstadoDinamica2D,
+    config: ConfiguracaoDinamica2D,
+    t_s,
+):
+    """
+    Constroi a aceleracao vertical mecanica externa a_dyn(x,z,t) [m s-2].
+
+    O campo e gaussiano no espaco e suave no tempo. Ele representa um
+    levantamento mecanico idealizado. Nao deve ser interpretado como uma
+    frente fria explicitamente resolvida.
+
+    Importante:
+    - nao altera theta;
+    - nao altera qv;
+    - nao prescreve w;
+    - apenas fornece uma aceleracao vertical externa que, via curl, entra
+      como tendencia da vorticidade.
+    """
+
+    if config.forc_dyn_amp_m_s2 == 0.0:
+        return np.zeros_like(estado.zeta)
+
+    janela = janela_forcamento_dinamico(
+        t_s=t_s,
+        inicio_s=config.forc_dyn_inicio_s,
+        duracao_s=config.forc_dyn_duracao_s,
+    )
+
+    if janela == 0.0:
+        return np.zeros_like(estado.zeta)
+
+    if config.forc_dyn_x0_m is None:
+        x0 = 0.5 * (estado.x[0] + estado.x[-1])
+    else:
+        x0 = float(config.forc_dyn_x0_m)
+
+    z0 = float(config.forc_dyn_z0_m)
+
+    r2 = (
+        ((estado.X - x0) / config.forc_dyn_rx_m) ** 2
+        + ((estado.Z - z0) / config.forc_dyn_rz_m) ** 2
+    )
+
+    return (
+        config.forc_dyn_amp_m_s2
+        * janela
+        * np.exp(-r2)
+    )
+
+
+def torque_forcamento_dinamico(
+    a_dyn,
+    dx,
+):
+    """
+    Converte a aceleracao vertical externa em tendencia de vorticidade.
+
+    Para o sistema 2D x-z e a convencao de sinais usada neste nucleo,
+    uma aceleracao vertical a_dyn entra na equacao da vorticidade pelo
+    gradiente horizontal:
+
+        d(zeta)/dt |_dyn = d(a_dyn)/dx
+
+    Como a_dyn tem unidade [m s-2], o gradiente tem unidade [s-2],
+    coerente com uma tendencia de vorticidade.
+    """
+
+    a_dyn = np.asarray(a_dyn, dtype=float)
+    torque = np.zeros_like(a_dyn)
+
+    torque[1:-1, :] = (
+        a_dyn[2:, :]
+        - a_dyn[:-2, :]
+    ) / (2.0 * dx)
+
+    return torque
 
 
 def _campo_Vt(q, N, rho, rho_x, mu, a, b, vmax, correcao_rho=None):
@@ -746,9 +915,13 @@ def _novo_dicionario_frames():
         "u": [],
         "thp": [],
         "qvp": [],
+        "a_dyn": [],
+        "torque_dyn": [],
         "cfl_adv": [],
         "cfl_diff": [],
     }
+
+
 def passo_dinamico(
     estado: EstadoDinamica2D,
     config: ConfiguracaoDinamica2D,
@@ -756,6 +929,7 @@ def passo_dinamico(
     w,
     dtheta_dz_now,
     dqv_dz_now,
+    t_s=0.0,
 ):
     """
     Avanca a dinamica e transporta os campos microfisicos por um passo de tempo.
@@ -763,6 +937,7 @@ def passo_dinamico(
     Inclui:
     - adveccao de vorticidade;
     - forca de empuxo;
+    - forcamento mecanico externo de levantamento;
     - adveccao de theta' e qv';
     - difusao;
     - transporte dos hidrometeoros;
@@ -830,6 +1005,23 @@ def passo_dinamico(
         G / THETA0
     ) * dthv_dx
 
+    # Forcamento mecanico externo.
+    #
+    # a_dyn e uma aceleracao vertical [m s-2]. Seu gradiente horizontal
+    # produz uma tendencia adicional de vorticidade [s-2]. Isso permite
+    # intensificar o levantamento sem aquecer artificialmente a parcela
+    # e sem prescrever diretamente a velocidade vertical.
+    a_dyn = campo_forcamento_dinamico(
+        estado=estado,
+        config=config,
+        t_s=t_s,
+    )
+
+    dyn_torque = torque_forcamento_dinamico(
+        a_dyn=a_dyn,
+        dx=config.dx,
+    )
+
     # ------------------------------------------------------------------
     # 3. Tendencia da vorticidade
     # ------------------------------------------------------------------
@@ -843,6 +1035,7 @@ def passo_dinamico(
             config.dz,
         )
         + buoy_torque
+        + dyn_torque
         + config.difusao
         * laplacian(
             estado.zeta,
@@ -1094,7 +1287,12 @@ def passo_dinamico(
     )
 
 def rodar_thompson_2d(config: ConfiguracaoDinamica2D | None = None, verbose=False):
-    """Executa o modelo 2D acoplado a microfisica de dois momentos."""
+    """Executa o modelo 2D acoplado a microfisica de dois momentos.
+
+    O forcamento mecanico externo, quando ativado, modifica a tendencia de
+    vorticidade. A velocidade vertical continua sendo obtida da funcao de
+    corrente, portanto nao e prescrita diretamente.
+    """
 
     config = config or ConfiguracaoDinamica2D()
     validar_configuracao(config)
@@ -1231,6 +1429,22 @@ def rodar_thompson_2d(config: ConfiguracaoDinamica2D | None = None, verbose=Fals
             frames["u"].append(u.copy())
             frames["thp"].append(estado.thp.copy())
             frames["qvp"].append(estado.qvp.copy())
+
+            # Salva tambem o forcamento mecanico aplicado naquele instante.
+            # Isso facilita a auditoria dos casos D0/D1 do Grupo 2.
+            a_dyn_atual = campo_forcamento_dinamico(
+                estado=estado,
+                config=config,
+                t_s=t_s,
+            )
+            torque_dyn_atual = torque_forcamento_dinamico(
+                a_dyn=a_dyn_atual,
+                dx=config.dx,
+            )
+
+            frames["a_dyn"].append(a_dyn_atual.copy())
+            frames["torque_dyn"].append(torque_dyn_atual.copy())
+
             frames["cfl_adv"].append(cfl["adveccao"])
             frames["cfl_diff"].append(cfl["difusao"])
 
@@ -1247,6 +1461,7 @@ def rodar_thompson_2d(config: ConfiguracaoDinamica2D | None = None, verbose=Fals
                     f"qg_max={estado.qg.max()*1000:7.4f} g/kg | "
                     f"topo~{topo:6.0f} m | "
                     f"CFL={cfl['adveccao']:.3f} | "
+                    f"a_dyn={np.max(a_dyn_atual):.4f} m/s2 | "
                     f"SHF={shf:5.0f} W/m2 | "
                     f"tempo_real={(time.time()-inicio)/60:5.1f} min"
                 )
@@ -1254,7 +1469,15 @@ def rodar_thompson_2d(config: ConfiguracaoDinamica2D | None = None, verbose=Fals
         if step == nsteps:
             break
 
-        passo_dinamico(estado, config, u, w, dtheta_now, dqv_now)
+        passo_dinamico(
+            estado,
+            config,
+            u,
+            w,
+            dtheta_now,
+            dqv_now,
+            t_s=t_s,
+        )
 
     for chave, valores in frames.items():
         frames[chave] = np.asarray(valores)

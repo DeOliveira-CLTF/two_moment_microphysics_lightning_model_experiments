@@ -1,0 +1,25 @@
+{
+  "B0_K": 10.0,
+  "B1_K": 14.0,
+  "delta_T_WARM_K": 4.0,
+  "preservar_rh": true,
+  "commit": "4cfe3179a6452f0417cb4f2b0b744884a08eff94",
+  "casos": {
+    "CTRL": {
+      "bolha_k": 10.0,
+      "delta_t_ambiente_k": 0.0
+    },
+    "WARM": {
+      "bolha_k": 10.0,
+      "delta_t_ambiente_k": 4.0
+    },
+    "BUBBLE_PLUS": {
+      "bolha_k": 14.0,
+      "delta_t_ambiente_k": 0.0
+    },
+    "WARM_BUBBLE_PLUS": {
+      "bolha_k": 14.0,
+      "delta_t_ambiente_k": 4.0
+    }
+  }
+}
