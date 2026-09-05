@@ -47,35 +47,72 @@ Essa aceleracao entra na equacao prognostica da vorticidade por meio de seu
 gradiente horizontal. Assim, w continua sendo prognosticado pelo nucleo e nao
 prescrito diretamente.
 
-MATRIZ FINAL
-------------
+MATRIZ FINAL DECOMPOSTA
+-----------------------
 
-    CTRL             : DeltaT = 0 K,  forcamento = D0
-    WARM             : DeltaT = +4 K, forcamento = D0
-    DYN_PLUS         : DeltaT = 0 K,  forcamento = D1
-    WARM_DYN_PLUS    : DeltaT = +4 K, forcamento = D1
+A matriz final completa separa tres componentes:
 
-com D1 > D0.
+1. aquecimento ambiental;
+2. intensidade do forcamento dinamico;
+3. tratamento da umidade no ambiente aquecido.
+
+Os seis casos unicos sao:
+
+    CTRL
+        DeltaT = 0 K, D0, ambiente de referencia
+
+    DYN_PLUS
+        DeltaT = 0 K, D1, ambiente de referencia
+
+    WARM_QV
+        DeltaT = +4 K, D0, qv inicial fixo e RH variavel
+
+    WARM_QV_DYN_PLUS
+        DeltaT = +4 K, D1, qv inicial fixo e RH variavel
+
+    WARM_RH
+        DeltaT = +4 K, D0, RH inicial fixa e qv ajustado
+
+    WARM_RH_DYN_PLUS
+        DeltaT = +4 K, D1, RH inicial fixa e qv ajustado
+
+CTRL e DYN_PLUS nao sao duplicados entre os regimes de umidade porque, sem
+aquecimento, os dois tratamentos produzem o mesmo ambiente inicial.
+
+A execucao final gera automaticamente uma tabela CSV do desenho experimental
+e uma tabela CSV completa com fatores e diagnosticos de cada subexperimento.
 
 FLUXO DE TRABALHO
 -----------------
 
 ETAPA 1 - varredura preliminar do forcamento dinamico
 
-    python experiments/group2_warming_lightning/experimento_grupo2.py varredura
+A varredura pode ser feita no CTRL, no WARM ou nos dois ambientes:
 
-Por padrao sao testadas amplitudes preliminares:
+    python experiments/group2_warming_lightning/experimento_grupo2.py \
+        varredura --ambiente ambos --umidade qv_fixo
 
-    0.001, 0.002, 0.005, 0.010 e 0.020 m s-2
+Por padrao sao testadas amplitudes:
 
-Esses valores sao apenas uma grade inicial de sensibilidade. A varredura serve
-para identificar uma faixa de forcamento que:
+    0.50, 0.55, 0.60, 0.65, 0.70, 0.75 e 0.80 m s-2
 
-- produza conveccao profunda;
-- alcance a fase mista;
-- produza graupel em torno de -15 C;
-- gere movimento ascendente em -15 C;
-- permaneça numericamente estavel segundo CFL.
+No CTRL:
+    DeltaT = 0 K
+
+No WARM:
+    DeltaT = +4 K
+
+A varredura serve para estimar separadamente:
+
+    Dcrit_CTRL  = menor D que produz conveccao profunda adequada no CTRL
+    Dcrit_WARM  = menor D que produz conveccao profunda adequada no WARM
+
+Os criterios de adequacao sao:
+
+- fase mista ativa;
+- graupel em torno de -15 C;
+- movimento ascendente em -15 C;
+- estabilidade numerica segundo CFL.
 
 A escolha de D0 e D1 NAO deve ser feita com base no maior F3 ou LPI*. Esses
 proxies sao resultados do experimento, nao criterios para calibrar o forcamento.
@@ -84,18 +121,34 @@ ETAPA 2 - escolha de D0 e D1
 
 Escolher:
 
-    D0 = forcamento de referencia, robusto mas nao excessivo
-    D1 = forcamento claramente mais intenso que D0
+    D0 = forcamento de referencia que sustenta conveccao no CTRL;
+    D1 = forcamento mais intenso, preferencialmente suficiente para superar
+         o limiar de iniciacao do WARM.
 
-A geometria e a duracao do forcamento devem permanecer identicas; apenas a
+Se houver uma faixa em que:
+
+    Dcrit_CTRL <= D0 < Dcrit_WARM <= D1
+
+o experimento evidencia diretamente que o ambiente aquecido exige um
+forcamento mais forte para desenvolver conveccao profunda.
+
+A geometria e a duracao do forcamento permanecem identicas; apenas a
 amplitude muda.
 
-ETAPA 3 - matriz final
+ETAPA 3 - matriz final decomposta
 
-Exemplo de sintaxe, APENAS depois da varredura:
+Por padrao o modo final executa os dois tratamentos de umidade:
 
-    python experiments/group2_warming_lightning/experimento_grupo2.py final \
-        --d0 0.002 --d1 0.010
+    python experimento_grupo2_reformulado.py final --d0 0.55 --d1 0.65
+
+Tambem e possivel executar apenas uma familia:
+
+    --umidade qv_fixo
+    --umidade rh_fixa
+
+ou manter o padrao:
+
+    --umidade ambas
 
 IMPORTANTE
 ----------
@@ -156,7 +209,7 @@ NC_CONTROLE_KG1 = 2.0e8
 
 # Grade.
 NX = 90
-NZ = 110
+NZ = 151
 DX_M = 100.0
 DZ_M = 100.0
 
@@ -184,8 +237,21 @@ FORC_DYN_DURACAO_S = 900.0 # 15 min
 BOLHA_K_GRUPO2 = 0.0
 BOLHA_QV_GRUPO2_KGKG = 0.0
 
-# Diretorio de saida.
-OUTPUT_BASE = ROOT / "outputs" / "group2"
+# Raiz dos diretorios de saida.
+OUTPUT_ROOT = ROOT / "outputs" / "group2"
+
+# Regimes de umidade:
+# qv_fixo -> qv do CTRL e preservado; RH varia no WARM.
+# rh_fixa -> RH do CTRL e preservada; qv aumenta no WARM.
+MODO_UMIDADE_PADRAO = "qv_fixo"
+MODOS_UMIDADE_VALIDOS = ("qv_fixo", "rh_fixa")
+
+# Ambientes disponiveis na varredura.
+AMBIENTES_VARREDURA_VALIDOS = ("ctrl", "warm", "ambos")
+
+# Modos de umidade aceitos na matriz final.
+MODOS_UMIDADE_FINAL_VALIDOS = ("ambas", "qv_fixo", "rh_fixa")
+MODO_UMIDADE_FINAL_PADRAO = "ambas"
 
 
 # ============================================================================
@@ -222,6 +288,78 @@ def rotulo_forcamento(valor):
     return f"{texto}ms2"
 
 
+def preservar_rh_do_modo(modo_umidade):
+    if modo_umidade == "qv_fixo":
+        return False
+    if modo_umidade == "rh_fixa":
+        return True
+    raise ValueError(
+        f"Modo de umidade invalido: {modo_umidade!r}. "
+        f"Use um de: {', '.join(MODOS_UMIDADE_VALIDOS)}."
+    )
+
+
+def rotulo_modo_umidade(modo_umidade):
+    if modo_umidade == "qv_fixo":
+        return "qv fixo; RH variavel"
+    if modo_umidade == "rh_fixa":
+        return "RH fixa; qv ajustado com o aquecimento"
+    raise ValueError(f"Modo de umidade invalido: {modo_umidade!r}")
+
+
+def obter_output_base(modo_umidade):
+    if modo_umidade == "qv_fixo":
+        return OUTPUT_ROOT / "qv_fixo_rh_variavel"
+    if modo_umidade == "rh_fixa":
+        return OUTPUT_ROOT / "rh_fixa"
+    raise ValueError(f"Modo de umidade invalido: {modo_umidade!r}")
+
+
+def ambientes_da_varredura(opcao):
+    """Retorna os ambientes que serao executados na varredura."""
+
+    if opcao == "ctrl":
+        return ("CTRL",)
+
+    if opcao == "warm":
+        return ("WARM",)
+
+    if opcao == "ambos":
+        return ("CTRL", "WARM")
+
+    raise ValueError(
+        f"Ambiente de varredura invalido: {opcao!r}. "
+        f"Use um de: {', '.join(AMBIENTES_VARREDURA_VALIDOS)}."
+    )
+
+
+def delta_t_do_ambiente(nome_ambiente):
+    if nome_ambiente == "CTRL":
+        return 0.0
+
+    if nome_ambiente == "WARM":
+        return float(DELTA_T_WARM_K)
+
+    raise ValueError(f"Ambiente desconhecido: {nome_ambiente!r}")
+
+
+def obter_output_final(modo_umidade_final):
+    """Retorna uma pasta exclusiva para a matriz final solicitada."""
+
+    if modo_umidade_final == "ambas":
+        return OUTPUT_ROOT / "final_decomposto"
+
+    if modo_umidade_final == "qv_fixo":
+        return OUTPUT_ROOT / "final_qv_fixo_rh_variavel"
+
+    if modo_umidade_final == "rh_fixa":
+        return OUTPUT_ROOT / "final_rh_fixa"
+
+    raise ValueError(
+        f"Modo final de umidade invalido: {modo_umidade_final!r}"
+    )
+
+
 # ============================================================================
 # 6. CONFIGURACAO DE UM CASO
 # ============================================================================
@@ -231,6 +369,7 @@ def criar_configuracao(
     delta_t_ambiente_k,
     forc_dyn_amp_m_s2,
     tempo_min,
+    modo_umidade,
 ):
     """
     Constroi um caso do novo Grupo 2.
@@ -243,6 +382,8 @@ def criar_configuracao(
     O perfil ambiental permanece explicitamente fixo em "referencia".
     Todo o restante permanece fixo.
     """
+
+    preservar_rh = preservar_rh_do_modo(modo_umidade)
 
     return ConfiguracaoDinamica2D(
         nx=NX,
@@ -263,8 +404,8 @@ def criar_configuracao(
         # Aquecimento ambiental.
         delta_t_ambiente_k=float(delta_t_ambiente_k),
 
-        # Mantem qv do CTRL. A RH pode diminuir quando T aumenta.
-        preservar_rh=False,
+        # Regime de umidade escolhido na linha de comando.
+        preservar_rh=preservar_rh,
 
         # Forcamento mecanico externo.
         forc_dyn_amp_m_s2=float(forc_dyn_amp_m_s2),
@@ -546,14 +687,17 @@ def executar_caso(
     forc_dyn_amp_m_s2,
     tempo_min,
     output_base,
+    modo_umidade,
 ):
     print()
     print("=" * 78)
     print(f"INICIANDO CASO: {caso}")
+    preservar_rh = preservar_rh_do_modo(modo_umidade)
+
     print(f"Perfil ambiente   = {PERFIL_AMBIENTE_GRUPO2}")
-    print(f"Delta T ambiente = {delta_t_ambiente_k:.3f} K")
-    print(f"Forcamento dyn    = {forc_dyn_amp_m_s2:.6f} m/s2")
-    print("qv ambiental      = preservado em relacao ao CTRL")
+    print(f"Regime de umidade = {rotulo_modo_umidade(modo_umidade)}")
+    print(f"Delta T ambiente  = {delta_t_ambiente_k:.3f} K")
+    print(f"Forcamento dyn     = {forc_dyn_amp_m_s2:.6f} m/s2")
     print("bolha termica     = desligada")
     print("=" * 78)
 
@@ -562,6 +706,7 @@ def executar_caso(
         delta_t_ambiente_k=delta_t_ambiente_k,
         forc_dyn_amp_m_s2=forc_dyn_amp_m_s2,
         tempo_min=tempo_min,
+        modo_umidade=modo_umidade,
     )
 
     pasta_caso = output_base / caso
@@ -590,9 +735,12 @@ def executar_caso(
     resumo = {
         "caso": caso,
         "perfil_ambiente": PERFIL_AMBIENTE_GRUPO2,
+        "modo_umidade": modo_umidade,
+        "descricao_umidade": rotulo_modo_umidade(modo_umidade),
         "delta_t_ambiente_k": float(delta_t_ambiente_k),
-        "preservar_rh": False,
-        "qv_inicial_preservado": True,
+        "preservar_rh": bool(preservar_rh),
+        "qv_inicial_preservado": bool(not preservar_rh),
+        "rh_inicial_preservada": bool(preservar_rh),
         "bolha_k": BOLHA_K_GRUPO2,
         "bolha_qv_kgkg": BOLHA_QV_GRUPO2_KGKG,
         "forc_dyn_amp_m_s2": float(forc_dyn_amp_m_s2),
@@ -661,11 +809,48 @@ def salvar_tabela_resumo(resumos, caminho):
         escritor.writerows(resumos)
 
 
+def salvar_tabela_desenho_experimental(matriz, caminho):
+    """Salva uma tabela enxuta com os fatores de cada subexperimento."""
+
+    linhas = []
+
+    for ordem, (caso, fatores) in enumerate(matriz.items(), start=1):
+        preservar_rh = preservar_rh_do_modo(fatores["modo_umidade"])
+        referencia = fatores["regime_umidade"] == "referencia"
+
+        linhas.append(
+            {
+                "ordem": ordem,
+                "caso": caso,
+                "delta_T_K": float(fatores["delta_t_ambiente_k"]),
+                "nivel_forcamento": fatores["nivel_forcamento"],
+                "forcamento_m_s2": float(fatores["forc_dyn_amp_m_s2"]),
+                "regime_umidade": fatores["regime_umidade"],
+                "modo_umidade_codigo": (
+                    "nao_aplicavel" if referencia else fatores["modo_umidade"]
+                ),
+                "preservar_RH": None if referencia else bool(preservar_rh),
+                "qv_inicial_preservado": (
+                    None if referencia else bool(not preservar_rh)
+                ),
+                "componente_aquecimento": bool(
+                    fatores["delta_t_ambiente_k"] > 0.0
+                ),
+                "componente_dinamica_intensificada": bool(
+                    fatores["nivel_forcamento"] == "D1"
+                ),
+                "descricao": fatores["descricao"],
+            }
+        )
+
+    salvar_tabela_resumo(linhas, caminho)
+
+
 # ============================================================================
 # 14. FIGURA DA VARREDURA DE FORCAMENTO
 # ============================================================================
 
-def salvar_figura_varredura(resumos, caminho):
+def salvar_figura_varredura(resumos, caminho, titulo=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -722,6 +907,118 @@ def salvar_figura_varredura(resumos, caminho):
     axes[3, 1].set_title("(h) CFL advectivo/sedimentacao")
     axes[3, 1].set_ylabel("CFL max")
     axes[3, 1].set_xlabel("forcamento dinamico [m s$^{-2}$]")
+
+    if titulo:
+        fig.suptitle(titulo, fontsize=12, y=0.995)
+        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.975))
+    else:
+        fig.tight_layout()
+
+    fig.savefig(caminho, dpi=180)
+    plt.close(fig)
+
+
+
+def salvar_figura_varredura_ctrl_warm(resumos_ctrl, resumos_warm, caminho):
+    """
+    Compara CTRL e WARM em funcao da amplitude do forcamento.
+
+    F3 e LPI* aparecem apenas como diagnosticos; nao sao usados para
+    determinar Dcrit.
+    """
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    conjuntos = {
+        "CTRL": sorted(
+            resumos_ctrl,
+            key=lambda r: r["forc_dyn_amp_m_s2"],
+        ),
+        "WARM": sorted(
+            resumos_warm,
+            key=lambda r: r["forc_dyn_amp_m_s2"],
+        ),
+    }
+
+    fig, axes = plt.subplots(
+        3,
+        2,
+        figsize=(11, 10),
+        sharex=True,
+    )
+
+    for ambiente, resumos in conjuntos.items():
+        if not resumos:
+            continue
+
+        forc = np.asarray(
+            [r["forc_dyn_amp_m_s2"] for r in resumos],
+            dtype=float,
+        )
+
+        wmax = np.asarray(
+            [r["w_max_m_s"] for r in resumos],
+            dtype=float,
+        )
+
+        topo = np.asarray(
+            [r["topo_nuvem_m"] / 1000.0 for r in resumos],
+            dtype=float,
+        )
+
+        w15 = np.asarray(
+            [r["w_minus15_max_m_s"] for r in resumos],
+            dtype=float,
+        )
+
+        qg15 = np.asarray(
+            [r["qg_minus15_max_kgkg"] * 1000.0 for r in resumos],
+            dtype=float,
+        )
+
+        f3 = np.asarray(
+            [r["f3_max"] for r in resumos],
+            dtype=float,
+        )
+
+        lpi = np.asarray(
+            [r["lpi_star_max"] for r in resumos],
+            dtype=float,
+        )
+
+        axes[0, 0].plot(forc, wmax, marker="o", label=ambiente)
+        axes[0, 1].plot(forc, topo, marker="o", label=ambiente)
+        axes[1, 0].plot(forc, w15, marker="o", label=ambiente)
+        axes[1, 1].plot(forc, qg15, marker="o", label=ambiente)
+        axes[2, 0].plot(forc, f3, marker="o", label=ambiente)
+        axes[2, 1].plot(forc, lpi, marker="o", label=ambiente)
+
+    axes[0, 0].set_title("(a) Movimento ascendente maximo")
+    axes[0, 0].set_ylabel("w max [m s$^{-1}$]")
+
+    axes[0, 1].set_title("(b) Topo maximo da nuvem")
+    axes[0, 1].set_ylabel("altura [km]")
+
+    axes[1, 0].set_title("(c) Movimento ascendente em -15 °C")
+    axes[1, 0].set_ylabel("w max [m s$^{-1}$]")
+
+    axes[1, 1].set_title("(d) Graupel em -15 °C")
+    axes[1, 1].set_ylabel("qg max [g kg$^{-1}$]")
+
+    axes[2, 0].set_title("(e) McCaul F3")
+    axes[2, 0].set_ylabel("F3 max")
+    axes[2, 0].set_xlabel("forcamento dinamico [m s$^{-2}$]")
+
+    axes[2, 1].set_title("(f) Lightning Potential Index")
+    axes[2, 1].set_ylabel("LPI* max")
+    axes[2, 1].set_xlabel("forcamento dinamico [m s$^{-2}$]")
+
+    axes[0, 0].legend()
+
+    for ax in axes.flat:
+        ax.grid(linestyle=":", alpha=0.35)
 
     fig.tight_layout()
     fig.savefig(caminho, dpi=180)
@@ -800,106 +1097,299 @@ def salvar_figura_comparativa_final(
 # ============================================================================
 
 def modo_varredura(args):
-    pasta = OUTPUT_BASE / "varredura_forcamento_dinamico"
-    pasta.mkdir(parents=True, exist_ok=True)
+    """
+    Executa a varredura de D no CTRL, no WARM ou nos dois ambientes.
 
-    forcamentos = sorted(set(float(v) for v in args.forcamentos))
+    Os resultados sao separados por ambiente:
+
+        .../varredura_forcamento_dinamico/CTRL/
+        .../varredura_forcamento_dinamico/WARM/
+
+    Portanto os casos de mesma amplitude nunca se sobrescrevem.
+    """
+
+    output_base = obter_output_base(args.umidade)
+    pasta_raiz = output_base / "varredura_forcamento_dinamico"
+    pasta_raiz.mkdir(parents=True, exist_ok=True)
+
+    forcamentos = sorted(
+        set(float(v) for v in args.forcamentos)
+    )
 
     if any(valor <= 0.0 for valor in forcamentos):
         raise ValueError("Todos os forcamentos devem ser positivos.")
 
+    ambientes = ambientes_da_varredura(args.ambiente)
     commit_inicial = obter_commit_git()
-    resumos = []
 
-    for forcamento in forcamentos:
-        caso = "SCAN_D_" + rotulo_forcamento(forcamento)
+    resumos_por_ambiente = {
+        "CTRL": [],
+        "WARM": [],
+    }
 
-        _, _, resumo = executar_caso(
-            caso=caso,
-            delta_t_ambiente_k=0.0,
-            forc_dyn_amp_m_s2=forcamento,
-            tempo_min=args.tempo_varredura,
-            output_base=pasta,
-        )
+    falhas = []
 
-        resumos.append(resumo)
+    for ambiente in ambientes:
+        delta_t = delta_t_do_ambiente(ambiente)
+        pasta_ambiente = pasta_raiz / ambiente
+        pasta_ambiente.mkdir(parents=True, exist_ok=True)
 
-        if obter_commit_git() != commit_inicial:
-            raise RuntimeError(
-                "O commit Git mudou durante a varredura. "
-                "Repita a bateria usando um unico commit."
+        print()
+        print("#" * 78)
+        print(f"VARREDURA DO AMBIENTE {ambiente}")
+        print(f"Delta T = {delta_t:.2f} K")
+        print(f"Umidade = {rotulo_modo_umidade(args.umidade)}")
+        print("#" * 78)
+
+        for forcamento in forcamentos:
+            caso = (
+                f"SCAN_{ambiente}_D_"
+                + rotulo_forcamento(forcamento)
             )
 
-    tabela = pasta / "resumo_varredura_forcamento.csv"
-    salvar_tabela_resumo(resumos, tabela)
+            try:
+                _, _, resumo = executar_caso(
+                    caso=caso,
+                    delta_t_ambiente_k=delta_t,
+                    forc_dyn_amp_m_s2=forcamento,
+                    tempo_min=args.tempo_varredura,
+                    output_base=pasta_ambiente,
+                    modo_umidade=args.umidade,
+                )
 
-    figura = pasta / "comparacao_varredura_forcamento.png"
-    salvar_figura_varredura(resumos, figura)
+                resumo["ambiente_varredura"] = ambiente
+                resumos_por_ambiente[ambiente].append(resumo)
 
-    candidatos_d0 = [
+            except RuntimeError as exc:
+                mensagem = str(exc)
+
+                # Em uma varredura, uma amplitude excessiva pode violar CFL.
+                # Registramos essa amplitude e seguimos para as demais.
+                if "CFL" not in mensagem.upper():
+                    raise
+
+                falha = {
+                    "ambiente": ambiente,
+                    "forc_dyn_amp_m_s2": float(forcamento),
+                    "erro": mensagem,
+                }
+                falhas.append(falha)
+
+                print()
+                print("!" * 78)
+                print(
+                    f"CASO {caso} INTERROMPIDO POR CFL; "
+                    "A VARREDURA CONTINUARA."
+                )
+                print(mensagem)
+                print("!" * 78)
+
+            if obter_commit_git() != commit_inicial:
+                raise RuntimeError(
+                    "O commit Git mudou durante a varredura. "
+                    "Repita a bateria usando um unico commit."
+                )
+
+        # Produtos individuais de cada ambiente.
+        resumos_amb = resumos_por_ambiente[ambiente]
+
+        if resumos_amb:
+            tabela_amb = (
+                pasta_raiz
+                / f"resumo_varredura_{ambiente}.csv"
+            )
+            salvar_tabela_resumo(
+                resumos_amb,
+                tabela_amb,
+            )
+
+            figura_amb = (
+                pasta_raiz
+                / f"comparacao_varredura_{ambiente}.png"
+            )
+            salvar_figura_varredura(
+                resumos_amb,
+                figura_amb,
+                titulo=(
+                    f"Varredura {ambiente} - "
+                    f"{rotulo_modo_umidade(args.umidade)}"
+                ),
+            )
+
+    # ----------------------------------------------------------------------
+    # Estimativa dos limiares dinamicos.
+    # ----------------------------------------------------------------------
+
+    candidatos_ctrl = [
         r["forc_dyn_amp_m_s2"]
-        for r in resumos
+        for r in resumos_por_ambiente["CTRL"]
         if r["candidato_D0"]
     ]
 
-    salvar_json(
-        pasta / "metadados_varredura.json",
-        {
-            "commit": commit_inicial,
-            "forcamentos_testados_m_s2": forcamentos,
-            "tempo_varredura_min": float(args.tempo_varredura),
-            "delta_T_ambiente_K": 0.0,
-            "perfil_ambiente": PERFIL_AMBIENTE_GRUPO2,
-            "preservar_rh": False,
-            "bolha_k": BOLHA_K_GRUPO2,
-            "bolha_qv_kgkg": BOLHA_QV_GRUPO2_KGKG,
-            "geometria_forcamento": {
-                "x0_m": FORC_DYN_X0_M,
-                "z0_m": FORC_DYN_Z0_M,
-                "rx_m": FORC_DYN_RX_M,
-                "rz_m": FORC_DYN_RZ_M,
-                "inicio_s": FORC_DYN_INICIO_S,
-                "duracao_s": FORC_DYN_DURACAO_S,
-            },
-            "criterios_candidato_D0": {
-                "fase_mista_ativa": True,
-                "graupel_minus15_ativo": True,
-                "updraft_minus15_ativo": True,
-                "CFL_adv_menor_igual_1": True,
-                "CFL_diff_menor_igual_0p5": True,
-                "F3_e_LPI_nao_usados_na_selecao": True,
-            },
-            "candidatos_D0_m_s2": candidatos_d0,
-        },
+    candidatos_warm = [
+        r["forc_dyn_amp_m_s2"]
+        for r in resumos_por_ambiente["WARM"]
+        if r["candidato_D0"]
+    ]
+
+    dcrit_ctrl = (
+        min(candidatos_ctrl)
+        if candidatos_ctrl
+        else None
     )
+
+    dcrit_warm = (
+        min(candidatos_warm)
+        if candidatos_warm
+        else None
+    )
+
+    # Figura comparativa se os dois ambientes foram executados.
+    figura_comparativa = None
+
+    if (
+        resumos_por_ambiente["CTRL"]
+        and resumos_por_ambiente["WARM"]
+    ):
+        figura_comparativa = (
+            pasta_raiz
+            / "comparacao_varredura_CTRL_WARM.png"
+        )
+
+        salvar_figura_varredura_ctrl_warm(
+            resumos_ctrl=resumos_por_ambiente["CTRL"],
+            resumos_warm=resumos_por_ambiente["WARM"],
+            caminho=figura_comparativa,
+        )
+
+    # Tabela combinada.
+    todos_resumos = (
+        resumos_por_ambiente["CTRL"]
+        + resumos_por_ambiente["WARM"]
+    )
+
+    if todos_resumos:
+        salvar_tabela_resumo(
+            todos_resumos,
+            pasta_raiz / "resumo_varredura_CTRL_WARM.csv",
+        )
+
+    metadados = {
+        "commit": commit_inicial,
+        "ambientes_executados": list(ambientes),
+        "forcamentos_testados_m_s2": forcamentos,
+        "tempo_varredura_min": float(args.tempo_varredura),
+        "delta_T_CTRL_K": 0.0,
+        "delta_T_WARM_K": float(DELTA_T_WARM_K),
+        "perfil_ambiente": PERFIL_AMBIENTE_GRUPO2,
+        "modo_umidade": args.umidade,
+        "descricao_umidade": rotulo_modo_umidade(args.umidade),
+        "preservar_rh": preservar_rh_do_modo(args.umidade),
+        "bolha_k": BOLHA_K_GRUPO2,
+        "bolha_qv_kgkg": BOLHA_QV_GRUPO2_KGKG,
+        "geometria_forcamento": {
+            "x0_m": FORC_DYN_X0_M,
+            "z0_m": FORC_DYN_Z0_M,
+            "rx_m": FORC_DYN_RX_M,
+            "rz_m": FORC_DYN_RZ_M,
+            "inicio_s": FORC_DYN_INICIO_S,
+            "duracao_s": FORC_DYN_DURACAO_S,
+        },
+        "criterios_limiar_convectivo": {
+            "fase_mista_ativa": True,
+            "graupel_minus15_ativo": True,
+            "updraft_minus15_ativo": True,
+            "CFL_adv_menor_igual_1": True,
+            "CFL_diff_menor_igual_0p5": True,
+            "F3_e_LPI_nao_usados_na_selecao": True,
+        },
+        "candidatos_CTRL_m_s2": candidatos_ctrl,
+        "candidatos_WARM_m_s2": candidatos_warm,
+        "Dcrit_CTRL_aprox_m_s2": dcrit_ctrl,
+        "Dcrit_WARM_aprox_m_s2": dcrit_warm,
+        "falhas_CFL": falhas,
+    }
+
+    salvar_json(
+        pasta_raiz / "metadados_varredura.json",
+        metadados,
+    )
+
+    # ----------------------------------------------------------------------
+    # Relatorio.
+    # ----------------------------------------------------------------------
 
     print()
     print("=" * 78)
     print("VARREDURA DE FORCAMENTO DINAMICO CONCLUIDA")
     print("=" * 78)
-    print(f"Tabela: {tabela}")
-    print(f"Figura: {figura}")
+    print(f"Diretorio: {pasta_raiz}")
 
-    if candidatos_d0:
-        print()
-        print("Forcamentos que satisfizeram os criterios minimos para D0:")
-        print(", ".join(f"{v:g} m/s2" for v in candidatos_d0))
+    if dcrit_ctrl is not None:
+        print(
+            f"Dcrit CTRL aproximado = {dcrit_ctrl:g} m/s2"
+        )
+    elif "CTRL" in ambientes:
+        print(
+            "Dcrit CTRL nao foi encontrado na faixa testada."
+        )
+
+    if dcrit_warm is not None:
+        print(
+            f"Dcrit WARM aproximado = {dcrit_warm:g} m/s2"
+        )
+    elif "WARM" in ambientes:
+        print(
+            "Dcrit WARM nao foi encontrado na faixa testada."
+        )
+
+    if (
+        dcrit_ctrl is not None
+        and dcrit_warm is not None
+    ):
+        if dcrit_warm > dcrit_ctrl:
+            print()
+            print(
+                "O WARM exigiu forcamento maior que o CTRL "
+                "segundo os criterios dinamicos/microfisicos."
+            )
+            print(
+                "Isto e consistente com a hipotese de maior "
+                "limiar de iniciacao no ambiente aquecido."
+            )
+        elif dcrit_warm == dcrit_ctrl:
+            print()
+            print(
+                "CTRL e WARM apresentaram o mesmo limiar na "
+                "resolucao da varredura. Refine a faixa se necessario."
+            )
+        else:
+            print()
+            print(
+                "O WARM apresentou limiar menor que o CTRL. "
+                "A hipotese de maior limiar no WARM nao e suportada "
+                "por esta varredura."
+            )
+
+    if figura_comparativa is not None:
+        print(
+            f"Figura CTRL x WARM: {figura_comparativa}"
+        )
+
+    if falhas:
         print()
         print(
-            "Escolha um D0 robusto e depois um D1 > D0 que produza uma "
-            "resposta dinamica claramente mais intensa, sem usar F3/LPI* "
-            "como criterio de calibracao."
+            f"{len(falhas)} caso(s) foram interrompidos por CFL "
+            "e registrados em metadados_varredura.json."
         )
-    else:
-        print()
-        print("Nenhum forcamento satisfez os criterios minimos para D0.")
-        print("Amplie ou refine a faixa e repita a varredura.")
 
     print()
-    print("Depois execute, por exemplo:")
+    print("Depois execute a matriz final, por exemplo:")
     print(
-        "python experiments/group2_warming_lightning/experimento_grupo2.py "
-        "final --d0 <D0> --d1 <D1>"
+        "python experiments/group2_warming_lightning/"
+        "experimento_grupo2.py final "
+        "--d0 <D0> --d1 <D1> "
+        f"--umidade {args.umidade}"
     )
     print("=" * 78)
 
@@ -949,7 +1439,90 @@ def adicionar_razoes_relativas(resumos):
 # 18. MATRIZ FINAL 2x2
 # ============================================================================
 
+def construir_matriz_final(d0, d1, modo_umidade_final):
+    """Constroi a matriz final sem duplicar CTRL e DYN_PLUS."""
+
+    matriz = {
+        "CTRL": {
+            "delta_t_ambiente_k": 0.0,
+            "forc_dyn_amp_m_s2": float(d0),
+            "nivel_forcamento": "D0",
+            "modo_umidade": "qv_fixo",
+            "regime_umidade": "referencia",
+            "descricao": "Ambiente de referencia com forcamento D0.",
+        },
+        "DYN_PLUS": {
+            "delta_t_ambiente_k": 0.0,
+            "forc_dyn_amp_m_s2": float(d1),
+            "nivel_forcamento": "D1",
+            "modo_umidade": "qv_fixo",
+            "regime_umidade": "referencia",
+            "descricao": "Ambiente de referencia com forcamento D1.",
+        },
+    }
+
+    if modo_umidade_final in {"ambas", "qv_fixo"}:
+        matriz.update(
+            {
+                "WARM_QV": {
+                    "delta_t_ambiente_k": float(DELTA_T_WARM_K),
+                    "forc_dyn_amp_m_s2": float(d0),
+                    "nivel_forcamento": "D0",
+                    "modo_umidade": "qv_fixo",
+                    "regime_umidade": "qv fixo; RH variavel",
+                    "descricao": (
+                        "Aquecimento com qv inicial preservado e RH livre "
+                        "para diminuir, sob forcamento D0."
+                    ),
+                },
+                "WARM_QV_DYN_PLUS": {
+                    "delta_t_ambiente_k": float(DELTA_T_WARM_K),
+                    "forc_dyn_amp_m_s2": float(d1),
+                    "nivel_forcamento": "D1",
+                    "modo_umidade": "qv_fixo",
+                    "regime_umidade": "qv fixo; RH variavel",
+                    "descricao": (
+                        "Aquecimento com qv inicial preservado e RH livre "
+                        "para diminuir, sob forcamento D1."
+                    ),
+                },
+            }
+        )
+
+    if modo_umidade_final in {"ambas", "rh_fixa"}:
+        matriz.update(
+            {
+                "WARM_RH": {
+                    "delta_t_ambiente_k": float(DELTA_T_WARM_K),
+                    "forc_dyn_amp_m_s2": float(d0),
+                    "nivel_forcamento": "D0",
+                    "modo_umidade": "rh_fixa",
+                    "regime_umidade": "RH fixa; qv ajustado",
+                    "descricao": (
+                        "Aquecimento com RH inicial preservada e qv "
+                        "ajustado, sob forcamento D0."
+                    ),
+                },
+                "WARM_RH_DYN_PLUS": {
+                    "delta_t_ambiente_k": float(DELTA_T_WARM_K),
+                    "forc_dyn_amp_m_s2": float(d1),
+                    "nivel_forcamento": "D1",
+                    "modo_umidade": "rh_fixa",
+                    "regime_umidade": "RH fixa; qv ajustado",
+                    "descricao": (
+                        "Aquecimento com RH inicial preservada e qv "
+                        "ajustado, sob forcamento D1."
+                    ),
+                },
+            }
+        )
+
+    return matriz
+
+
 def modo_final(args):
+    """Executa a matriz final decomposta e gera CSVs prontos."""
+
     if args.d0 <= 0.0:
         raise ValueError("D0 deve ser positivo.")
 
@@ -959,27 +1532,19 @@ def modo_final(args):
             f"Recebido: D0={args.d0:g}, D1={args.d1:g} m/s2."
         )
 
-    matriz = {
-        "CTRL": {
-            "delta_t_ambiente_k": 0.0,
-            "forc_dyn_amp_m_s2": float(args.d0),
-        },
-        "WARM": {
-            "delta_t_ambiente_k": DELTA_T_WARM_K,
-            "forc_dyn_amp_m_s2": float(args.d0),
-        },
-        "DYN_PLUS": {
-            "delta_t_ambiente_k": 0.0,
-            "forc_dyn_amp_m_s2": float(args.d1),
-        },
-        "WARM_DYN_PLUS": {
-            "delta_t_ambiente_k": DELTA_T_WARM_K,
-            "forc_dyn_amp_m_s2": float(args.d1),
-        },
-    }
+    output_base = obter_output_final(args.umidade)
+    output_base.mkdir(parents=True, exist_ok=True)
+
+    matriz = construir_matriz_final(
+        d0=args.d0,
+        d1=args.d1,
+        modo_umidade_final=args.umidade,
+    )
+
+    tabela_desenho = output_base / "tabela_desenho_experimental_grupo2.csv"
+    salvar_tabela_desenho_experimental(matriz, tabela_desenho)
 
     commit_inicial = obter_commit_git()
-
     resultados_por_caso = {}
     diagnosticos_por_caso = {}
     resumos = []
@@ -990,8 +1555,13 @@ def modo_final(args):
             delta_t_ambiente_k=fatores["delta_t_ambiente_k"],
             forc_dyn_amp_m_s2=fatores["forc_dyn_amp_m_s2"],
             tempo_min=args.tempo_final,
-            output_base=OUTPUT_BASE,
+            output_base=output_base,
+            modo_umidade=fatores["modo_umidade"],
         )
+
+        resumo["nivel_forcamento"] = fatores["nivel_forcamento"]
+        resumo["regime_umidade_experimental"] = fatores["regime_umidade"]
+        resumo["descricao_subexperimento"] = fatores["descricao"]
 
         resultados_por_caso[caso] = resultado
         diagnosticos_por_caso[caso] = diagnosticos
@@ -1000,67 +1570,93 @@ def modo_final(args):
         if obter_commit_git() != commit_inicial:
             raise RuntimeError(
                 "O commit Git mudou durante a bateria final. "
-                "Os quatro casos devem usar um unico commit."
+                "Todos os subexperimentos devem usar um unico commit."
             )
 
-    # ----------------------------------------------------------------------
-    # Verificacoes da logica experimental.
-    # ----------------------------------------------------------------------
-
     resumo_ctrl = next(r for r in resumos if r["caso"] == "CTRL")
-    resumo_warm = next(r for r in resumos if r["caso"] == "WARM")
     resumo_dyn = next(r for r in resumos if r["caso"] == "DYN_PLUS")
 
     if not resumo_ctrl["candidato_D0"]:
         warnings.warn(
-            "O CTRL final nao satisfez todos os criterios minimos definidos "
-            "para D0. Revise a escolha antes da interpretacao cientifica.",
+            "O CTRL final nao satisfez os criterios minimos para D0.",
             RuntimeWarning,
         )
 
-    # O WARM deve ficar relativamente mais seco quando qv e mantido fixo.
-    if resumo_warm["RH_0_2km_media"] >= resumo_ctrl["RH_0_2km_media"]:
-        warnings.warn(
-            "A RH media de 0-2 km do WARM nao ficou menor que a do CTRL. "
-            "Isso contradiz a hipotese experimental esperada e deve ser "
-            "verificado antes da interpretacao.",
-            RuntimeWarning,
-        )
-
-    # D1 deve produzir resposta dinamica maior que D0 no ambiente CTRL.
     if resumo_dyn["w_max_m_s"] <= resumo_ctrl["w_max_m_s"]:
         warnings.warn(
-            "DYN_PLUS nao produziu w_max maior que CTRL. "
-            "D1 pode nao estar representando um forcamento dinamico "
-            "claramente mais intenso na resposta do modelo.",
+            "DYN_PLUS nao produziu w_max maior que CTRL.",
             RuntimeWarning,
         )
 
-    # qv dos ambientes CTRL/WARM deve ser o mesmo quando preservar_rh=False.
-    qv_ctrl = np.asarray(resultados_por_caso["CTRL"]["qv_env_1d"], dtype=float)
-    qv_warm = np.asarray(resultados_por_caso["WARM"]["qv_env_1d"], dtype=float)
+    qv_ctrl = np.asarray(
+        resultados_por_caso["CTRL"]["qv_env_1d"], dtype=float
+    )
+    rh_ctrl = np.asarray(
+        resultados_por_caso["CTRL"]["rh_env_1d"], dtype=float
+    )
 
-    if not np.allclose(qv_ctrl, qv_warm, rtol=0.0, atol=1.0e-12):
-        warnings.warn(
-            "qv ambiental do WARM difere do CTRL, embora o Grupo 2 novo "
-            "exija qv inicial preservado. Verifique o nucleo/configuracao.",
-            RuntimeWarning,
+    if "WARM_QV" in resultados_por_caso:
+        resumo_warm_qv = next(r for r in resumos if r["caso"] == "WARM_QV")
+        qv_warm_qv = np.asarray(
+            resultados_por_caso["WARM_QV"]["qv_env_1d"], dtype=float
         )
+
+        if not np.allclose(qv_ctrl, qv_warm_qv, rtol=0.0, atol=1.0e-12):
+            warnings.warn(
+                "WARM_QV nao preservou o perfil inicial de qv do CTRL.",
+                RuntimeWarning,
+            )
+
+        if resumo_warm_qv["RH_0_2km_media"] >= resumo_ctrl["RH_0_2km_media"]:
+            warnings.warn(
+                "WARM_QV nao apresentou reducao de RH em 0-2 km.",
+                RuntimeWarning,
+            )
+
+    if "WARM_RH" in resultados_por_caso:
+        resumo_warm_rh = next(r for r in resumos if r["caso"] == "WARM_RH")
+        qv_warm_rh = np.asarray(
+            resultados_por_caso["WARM_RH"]["qv_env_1d"], dtype=float
+        )
+        rh_warm_rh = np.asarray(
+            resultados_por_caso["WARM_RH"]["rh_env_1d"], dtype=float
+        )
+
+        if not np.allclose(rh_ctrl, rh_warm_rh, rtol=0.0, atol=1.0e-12):
+            warnings.warn(
+                "WARM_RH nao preservou o perfil inicial de RH do CTRL.",
+                RuntimeWarning,
+            )
+
+        if np.nanmean(qv_warm_rh) <= np.nanmean(qv_ctrl):
+            warnings.warn(
+                "WARM_RH nao apresentou aumento medio de qv.",
+                RuntimeWarning,
+            )
+
+        if not np.isclose(
+            resumo_warm_rh["RH_0_2km_media"],
+            resumo_ctrl["RH_0_2km_media"],
+            rtol=0.0,
+            atol=1.0e-10,
+        ):
+            warnings.warn(
+                "A RH media de 0-2 km de WARM_RH difere da do CTRL.",
+                RuntimeWarning,
+            )
 
     resumos_relativos = adicionar_razoes_relativas(resumos)
-
-    tabela = OUTPUT_BASE / "resumo_grupo2.csv"
-    salvar_tabela_resumo(resumos_relativos, tabela)
+    tabela_resultados = output_base / "tabela_resultados_experimentos_grupo2.csv"
+    salvar_tabela_resumo(resumos_relativos, tabela_resultados)
 
     salvar_json(
-        OUTPUT_BASE / "matriz_experimental.json",
+        output_base / "matriz_experimental.json",
         {
             "D0_m_s2": float(args.d0),
             "D1_m_s2": float(args.d1),
             "delta_T_WARM_K": float(DELTA_T_WARM_K),
             "perfil_ambiente": PERFIL_AMBIENTE_GRUPO2,
-            "preservar_rh": False,
-            "qv_inicial_preservado": True,
+            "modo_umidade_final": args.umidade,
             "bolha_k": BOLHA_K_GRUPO2,
             "bolha_qv_kgkg": BOLHA_QV_GRUPO2_KGKG,
             "geometria_forcamento": {
@@ -1076,7 +1672,7 @@ def modo_final(args):
         },
     )
 
-    figura = OUTPUT_BASE / "comparacao_grupo2.png"
+    figura = output_base / "comparacao_grupo2_final.png"
     salvar_figura_comparativa_final(
         resultados_por_caso=resultados_por_caso,
         diagnosticos_por_caso=diagnosticos_por_caso,
@@ -1085,18 +1681,19 @@ def modo_final(args):
 
     print()
     print("=" * 78)
-    print("MATRIZ FINAL DO GRUPO 2 CONCLUIDA")
+    print("MATRIZ FINAL DECOMPOSTA DO GRUPO 2 CONCLUIDA")
     print("=" * 78)
     print(f"Perfil ambiente = {PERFIL_AMBIENTE_GRUPO2}")
     print(f"D0 = {args.d0:.6f} m/s2")
     print(f"D1 = {args.d1:.6f} m/s2")
     print(f"Delta T WARM = {DELTA_T_WARM_K:.2f} K")
-    print("qv WARM = qv CTRL; RH livre para diminuir")
-    print(f"RH 0-2 km CTRL = {100.0 * resumo_ctrl['RH_0_2km_media']:.1f} %")
-    print(f"RH 0-2 km WARM = {100.0 * resumo_warm['RH_0_2km_media']:.1f} %")
-    print(f"Resumo CSV: {tabela}")
-    print(f"Figura: {figura}")
-    print(f"Commit: {commit_inicial}")
+    print(f"Familias de umidade = {args.umidade}")
+    print(f"Numero de subexperimentos = {len(matriz)}")
+    print(f"Diretorio = {output_base}")
+    print(f"Tabela desenho = {tabela_desenho}")
+    print(f"Tabela resultados = {tabela_resultados}")
+    print(f"Figura = {figura}")
+    print(f"Commit = {commit_inicial}")
     print("=" * 78)
 
 
@@ -1107,8 +1704,8 @@ def modo_final(args):
 def construir_parser():
     parser = argparse.ArgumentParser(
         description=(
-            "Grupo 2: aquecimento com qv preservado x forcamento dinamico "
-            "externo, com diagnosticos microfisicos e eletricos."
+            "Grupo 2: aquecimento x forcamento dinamico externo, "
+            "com varredura CTRL/WARM e diagnosticos microfisicos e eletricos."
         )
     )
 
@@ -1118,8 +1715,8 @@ def construir_parser():
     p_scan = subparsers.add_parser(
         "varredura",
         help=(
-            "Testa amplitudes do forcamento dinamico no ambiente CTRL "
-            "para orientar a escolha de D0 e D1."
+            "Testa amplitudes do forcamento no CTRL, no WARM ou em ambos "
+            "para estimar os limiares dinamicos de iniciacao."
         ),
     )
 
@@ -1127,10 +1724,30 @@ def construir_parser():
         "--forcamentos",
         type=float,
         nargs="+",
-        default=[0.50, 0.55, 0.60],
+        default=[0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80],
         help=(
             "Amplitudes do forcamento mecanico [m s-2]. "
-            "Padrao atual: 0.10 0.15 0.20."
+            "Padrao atual: 0.50 0.55 0.60 0.65 0.70 0.75 0.80."
+        ),
+    )
+
+    p_scan.add_argument(
+        "--ambiente",
+        choices=AMBIENTES_VARREDURA_VALIDOS,
+        default="ambos",
+        help=(
+            "Ambiente usado na varredura: 'ctrl', 'warm' ou 'ambos'. "
+            "Padrao: ambos."
+        ),
+    )
+
+    p_scan.add_argument(
+        "--umidade",
+        choices=MODOS_UMIDADE_VALIDOS,
+        default=MODO_UMIDADE_PADRAO,
+        help=(
+            "'qv_fixo' mantem qv e deixa RH variar; "
+            "'rh_fixa' mantem RH e ajusta qv."
         ),
     )
 
@@ -1147,7 +1764,10 @@ def construir_parser():
     # Matriz final.
     p_final = subparsers.add_parser(
         "final",
-        help="Executa CTRL, WARM, DYN_PLUS e WARM_DYN_PLUS.",
+        help=(
+            "Executa a matriz final decomposta. Por padrao inclui "
+            "qv fixo/RH variavel e RH fixa."
+        ),
     )
 
     p_final.add_argument(
@@ -1162,6 +1782,16 @@ def construir_parser():
         type=float,
         required=True,
         help="Forcamento dinamico forte D1 [m s-2]. Deve ser maior que D0.",
+    )
+
+    p_final.add_argument(
+        "--umidade",
+        choices=MODOS_UMIDADE_FINAL_VALIDOS,
+        default=MODO_UMIDADE_FINAL_PADRAO,
+        help=(
+            "Familias da matriz final: 'ambas', 'qv_fixo' ou 'rh_fixa'. "
+            f"Padrao: {MODO_UMIDADE_FINAL_PADRAO}."
+        ),
     )
 
     p_final.add_argument(
@@ -1185,18 +1815,25 @@ def main():
     parser = construir_parser()
     args = parser.parse_args()
 
-    OUTPUT_BASE.mkdir(parents=True, exist_ok=True)
-
     print(f"Raiz do repositorio: {ROOT}")
-    print(f"Saidas do Grupo 2:   {OUTPUT_BASE}")
     print(f"Commit atual:        {obter_commit_git()}")
     print(f"Perfil ambiente:     {PERFIL_AMBIENTE_GRUPO2}")
-    print("Grupo 2 novo: qv preservado, RH nao preservada, sem bolha termica.")
+    print("Grupo 2: sem bolha termica; forcing dinamico prognostico.")
 
     if args.modo == "varredura":
+        output_base = obter_output_base(args.umidade)
+        output_base.mkdir(parents=True, exist_ok=True)
+        print(f"Saidas do Grupo 2:   {output_base}")
+        print(f"Regime de umidade:   {rotulo_modo_umidade(args.umidade)}")
         modo_varredura(args)
+
     elif args.modo == "final":
+        output_base = obter_output_final(args.umidade)
+        output_base.mkdir(parents=True, exist_ok=True)
+        print(f"Saidas do Grupo 2:   {output_base}")
+        print(f"Familias de umidade: {args.umidade}")
         modo_final(args)
+
     else:
         raise ValueError(f"Modo desconhecido: {args.modo}")
 

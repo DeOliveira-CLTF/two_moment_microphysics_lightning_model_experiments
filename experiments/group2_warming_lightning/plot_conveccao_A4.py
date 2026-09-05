@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Figura de artigo: evolucao da conveccao e diagnosticos eletricos
 ================================================================
@@ -12,6 +11,7 @@ ESTRUTURA DA FIGURA
 (a-e) Snapshots verticais x-z em tempos selecionados:
     - sombreado:
         qc + qi + qs + qg [g/kg]
+        colormap "jet", consistente com as figuras do Grupo 3
     - contornos:
         velocidade vertical positiva w [m/s]
     - isotermas:
@@ -56,7 +56,11 @@ Executando a partir de:
 
 pode-se usar:
 
-python plot_conveccao.py --input "outputs/group2/varredura_bolha/SCAN_B_10K/resultados_SCAN_B_10K.npz" --output-prefix "outputs/group2/varredura_bolha/SCAN_B_10K/figura_artigo_SCAN_B_10K" --times 10 15 20 30 40
+python plot_conveccao_A4.py --input "outputs/group2/varredura_forcamento_dinamico/SCAN_D_0p5ms2/resultados_SCAN_D_0p5ms2.npz" --output-prefix "outputs/group2/varredura_forcamento_dinamico/SCAN_D_0p5ms2/figura_artigo_SCAN_D_0p5ms2" --times 10 15 20 30 40
+
+python plot_conveccao_A4.py --input "outputs\group2\rh_fixa\varredura_forcamento_dinamico\WARM\SCAN_WARM_D_0p65ms2/resultados_SCAN_WARM_D_0p65ms2.npz" --output-prefix "outputs\group2\rh_fixavarredura_forcamento_dinamico\WARM\SCAN_WARM_D_0p65ms2/figura_artigo_SCAN_WARM_D_0p65ms2" --times 10 15 20 30 40
+
+
 
 Os caminhos relativos sao automaticamente interpretados a partir da
 RAIZ DO REPOSITORIO.
@@ -103,7 +107,7 @@ plt.rcParams.update(
         "xtick.labelsize": 7.2,
         "ytick.labelsize": 7.2,
         "legend.fontsize": 8.0,
-        "figure.dpi": 150,
+        "figure.dpi": 300,
         "savefig.dpi": 300,
         "pdf.fonttype": 42,
         "ps.fonttype": 42,
@@ -143,9 +147,14 @@ DEFAULT_CLOUD_TOP_THRESHOLD = 1.0e-5
 
 # Niveis de movimento ascendente mostrados nos snapshots.
 W_CONTOUR_LEVELS = (
-    2.0,
+    -10.0,
+    -5.0,
+    -1.0,
+    1.0,
     5.0,
     10.0,
+    15.0,
+    20.0
 )
 
 # Isotermas relevantes para fase mista.
@@ -154,6 +163,12 @@ ISOTHERMS_C = (
     -15.0,
     -20.0,
 )
+
+# Colormap do condensado.
+#
+# Usa "jet" para manter a mesma linguagem visual das figuras do Grupo 3:
+# baixos valores em azul, intermediarios em verde/amarelo e maiores em vermelho.
+CMAP_CONDENSADO = "jet"
 
 
 # ============================================================================
@@ -770,7 +785,7 @@ def plot_snapshot(
         z_km,
         qcond_t.T,
         shading="auto",
-        cmap="Blues",
+        cmap=CMAP_CONDENSADO,
         norm=norm_condensado,
         rasterized=True,
     )
@@ -801,8 +816,8 @@ def plot_snapshot(
             z_km,
             w_t.T,
             levels=niveis_w,
-            colors="black",
-            linewidths=0.8,
+            colors="magenta",
+            linewidths=1,
         )
 
         ax.clabel(
@@ -1269,7 +1284,7 @@ def gerar_figura_artigo(
             0.90,
         ],
         left=0.060,
-        right=0.985,
+        right=0.945,
         bottom=0.070,
         top=0.985,
         hspace=0.30,
@@ -1292,9 +1307,9 @@ def gerar_figura_artigo(
         Line2D(
             [0],
             [0],
-            color="black",
+            color="magenta",
             linewidth=1.1,
-            label=r"$w$ = 2, 5, 10 m s$^{-1}$",
+            label=r"$w$ (m s$^{-1})$",
         ),
 
         Line2D(
@@ -1364,7 +1379,7 @@ def gerar_figura_artigo(
             [1.0] * n_snapshots
             + [0.070]
         ),
-        wspace=0.065,
+        wspace=0.085,
     )
 
     axes_snapshots = []
@@ -1442,8 +1457,12 @@ def gerar_figura_artigo(
     cbar.set_label(
         r"$q_c+q_i+q_s+q_g$ (g kg$^{-1}$)",
         fontsize=8.1,
-        labelpad=6.0,
+        rotation=270,
+        labelpad=14.0,
     )
+
+    cbar.ax.yaxis.set_label_position("right")
+    cbar.ax.yaxis.tick_right()
 
     cbar.ax.tick_params(
         labelsize=7.2,
@@ -1671,6 +1690,10 @@ def gerar_figura_artigo(
         "vmax condensado:  "
         f"{vmax_condensado:.3f} g/kg "
         "(percentil 99.5 dos snapshots)"
+    )
+
+    print(
+        f"colormap:          {CMAP_CONDENSADO}"
     )
 
     print("=" * 78)

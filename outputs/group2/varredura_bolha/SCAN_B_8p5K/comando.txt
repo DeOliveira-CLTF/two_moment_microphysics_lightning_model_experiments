@@ -1,1 +1,0 @@
-C:\Users\teixe\anaconda3\python.exe experimento_grupo2_reformulado.py varredura --amplitudes 8.5 9 9.5 10
