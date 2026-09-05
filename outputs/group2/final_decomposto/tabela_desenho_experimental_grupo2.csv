@@ -1,0 +1,7 @@
+ordem,caso,delta_T_K,nivel_forcamento,forcamento_m_s2,regime_umidade,modo_umidade_codigo,preservar_RH,qv_inicial_preservado,componente_aquecimento,componente_dinamica_intensificada,descricao
+1,CTRL,0.0,D0,0.55,referencia,nao_aplicavel,,,False,False,Ambiente de referencia com forcamento D0.
+2,DYN_PLUS,0.0,D1,0.65,referencia,nao_aplicavel,,,False,True,Ambiente de referencia com forcamento D1.
+3,WARM_QV,4.0,D0,0.55,qv fixo; RH variavel,qv_fixo,False,True,True,False,"Aquecimento com qv inicial preservado e RH livre para diminuir, sob forcamento D0."
+4,WARM_QV_DYN_PLUS,4.0,D1,0.65,qv fixo; RH variavel,qv_fixo,False,True,True,True,"Aquecimento com qv inicial preservado e RH livre para diminuir, sob forcamento D1."
+5,WARM_RH,4.0,D0,0.55,RH fixa; qv ajustado,rh_fixa,True,False,True,False,"Aquecimento com RH inicial preservada e qv ajustado, sob forcamento D0."
+6,WARM_RH_DYN_PLUS,4.0,D1,0.65,RH fixa; qv ajustado,rh_fixa,True,False,True,True,"Aquecimento com RH inicial preservada e qv ajustado, sob forcamento D1."
