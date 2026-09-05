@@ -5,6 +5,8 @@ Este modulo preserva o nucleo Boussinesq vorticidade-funcao de corrente do
 modelo fornecido pelo professor e acrescenta os controles necessarios para os
 experimentos cientificos:
 
+- perfis ambientais independentes para os experimentos de iniciacao (Grupo 2)
+  e de sensibilidade microfisica (Grupos 1 e 3);
 - aquecimento uniforme do ambiente em temperatura real (Grupo 2);
 - preservacao opcional de umidade relativa no ambiente aquecido;
 - forcamento mecanico externo de levantamento (Grupo 2), aplicado como
@@ -65,6 +67,15 @@ class ConfiguracaoDinamica2D:
     bolha_rx_m: float = 1100.0
     bolha_rz_m: float = 600.0
     bolha_qv_kgkg: float = 0.5e-3
+
+    # Perfil ambiental de referencia.
+    #
+    # 'referencia': perfil original do nucleo/professor, usado no Grupo 2
+    #               para os experimentos de iniciacao convectiva.
+    # 'microfisica': perfil mais umido e menos estavel adotado nos
+    #                 experimentos de sensibilidade microfisica dos
+    #                 Grupos 1 e 3.
+    perfil_ambiente: str = "referencia"
 
     # Experimento de aquecimento.
     delta_t_ambiente_k: float = 0.0
@@ -151,6 +162,10 @@ def validar_configuracao(config: ConfiguracaoDinamica2D) -> None:
             raise ValueError(f"{nome} deve ser positivo")
     if config.microfisica not in {"nenhuma", "thompson"}:
         raise ValueError("microfisica deve ser 'nenhuma' ou 'thompson'")
+    if config.perfil_ambiente not in {"referencia", "microfisica"}:
+        raise ValueError(
+            "perfil_ambiente deve ser 'referencia' ou 'microfisica'"
+        )
     if config.nc_ativacao_kg1 <= 0.0:
         raise ValueError("nc_ativacao_kg1 deve ser positivo")
     if config.cfl_aviso <= 0.0 or config.cfl_limite <= 0.0:
@@ -220,35 +235,82 @@ def qsat_liq(T_k, p_hpa):
     return EPS_R * es / np.maximum(p_hpa - es, 1.0e-3)
 
 
-def dtheta_dz_env(z_m):
+def dtheta_dz_env(z_m, perfil_ambiente="referencia"):
+    """Retorna dtheta/dz [K m-1] para o perfil ambiental selecionado.
+
+    Perfis disponiveis
+    ------------------
+    referencia
+        Perfil original do nucleo/professor. Deve ser usado pelo Grupo 2
+        quando o objetivo e estudar a iniciacao convectiva sob aquecimento
+        e diferentes intensidades de forcamento dinamico.
+
+    microfisica
+        Perfil mais umido e menos estavel introduzido para sustentar uma
+        tempestade estabelecida nos experimentos de sensibilidade
+        microfisica dos Grupos 1 e 3.
     """
-    Perfil de gradiente de temperatura potencial (dtheta/dz) modificado.
-    A estabilidade na camada limite foi mantida, mas a troposfera média 
-    foi ligeiramente desestabilizada (menor dtheta/dz) para aumentar o CAPE.
-    """
-    return np.where(
-        z_m < 1000.0,
-        2.5e-3, # Ligeiramente menos estável na camada limite (era 3.0e-3)
-        np.where(z_m < 3000.0, 4.0e-3, # Menos estável (era 6.5e-3), facilita a quebra da CIN
-                 np.where(z_m < 8500.0, 1.5e-3, # Troposfera média menos estável (era 2.0e-3) 
-                          6.0e-3)) # Estratosfera mantém forte estabilidade
+
+    if perfil_ambiente == "referencia":
+        return np.where(
+            z_m < 1000.0,
+            3.0e-3,
+            np.where(
+                z_m < 2000.0,
+                6.5e-3,
+                np.where(z_m < 8500.0, 2.0e-3, 6.0e-3),
+            ),
+        )
+
+    if perfil_ambiente == "microfisica":
+        return np.where(
+            z_m < 1000.0,
+            2.5e-3,
+            np.where(
+                z_m < 3000.0,
+                4.0e-3,
+                np.where(z_m < 8500.0, 1.5e-3, 6.0e-3),
+            ),
+        )
+
+    raise ValueError(
+        "perfil_ambiente deve ser 'referencia' ou 'microfisica'"
     )
 
 
-def RH_env_profile(z_m):
-    """
-    Perfil de umidade relativa modificado.
-    A umidade em baixos níveis (abaixo de 2000m) foi aumentada 
-    significativamente para prevenir a evaporação prematura e o 
-    entranhamento de ar seco, garantindo sustento para o updraft.
-    """
-    return np.where(
-        z_m < 1500.0,
-        0.95,  # Aumentado de 0.85/0.35 para 0.95 (Quase saturado na baixa troposfera)
-        np.where(z_m < 4000.0, 0.70, # Aumentado significativamente nos níveis médios
-                 np.where(z_m < 8500.0, 0.40, 0.20))
-    )
+def RH_env_profile(z_m, perfil_ambiente="referencia"):
+    """Retorna o perfil de umidade relativa do ambiente de controle.
 
+    O aquecimento do Grupo 2 e aplicado posteriormente. Quando
+    preservar_rh=False, qv do CTRL e mantido e a RH efetiva diminui
+    automaticamente no ambiente aquecido.
+    """
+
+    if perfil_ambiente == "referencia":
+        return np.where(
+            z_m < 1000.0,
+            0.70,
+            np.where(
+                z_m < 2000.0,
+                0.35,
+                np.where(z_m < 8500.0, 0.55, 0.20),
+            ),
+        )
+
+    if perfil_ambiente == "microfisica":
+        return np.where(
+            z_m < 1500.0,
+            0.95,
+            np.where(
+                z_m < 4000.0,
+                0.70,
+                np.where(z_m < 8500.0, 0.40, 0.20),
+            ),
+        )
+
+    raise ValueError(
+        "perfil_ambiente deve ser 'referencia' ou 'microfisica'"
+    )
 
 def fluxo_sensivel(t_s, maximo=250.0, duracao_dia_s=12.0 * 3600.0):
     if 0.0 <= t_s <= duracao_dia_s:
@@ -290,10 +352,10 @@ def criar_estado(config: ConfiguracaoDinamica2D) -> EstadoDinamica2D:
     z = np.arange(config.nz, dtype=float) * config.dz
     X, Z = np.meshgrid(x, z, indexing="ij")
 
-    # Perfil de referencia original do professor em temperatura potencial.
+    # Perfil ambiental de controle selecionado para este experimento.
     theta_original = np.zeros(config.nz, dtype=float)
     theta_original[0] = THETA0
-    grad = dtheta_dz_env(z)
+    grad = dtheta_dz_env(z, config.perfil_ambiente)
     for k in range(1, config.nz):
         theta_original[k] = theta_original[k - 1] + grad[k - 1] * config.dz
 
@@ -306,7 +368,7 @@ def criar_estado(config: ConfiguracaoDinamica2D) -> EstadoDinamica2D:
     T_env_1d = T_original_1d + config.delta_t_ambiente_k
     theta_env_1d = T_env_1d / pi_1d
 
-    rh_ctrl_1d = RH_env_profile(z)
+    rh_ctrl_1d = RH_env_profile(z, config.perfil_ambiente)
     if config.preservar_rh:
         qv_env_1d = rh_ctrl_1d * qsat_liq(T_env_1d, p_hpa_1d)
     else:
@@ -1498,6 +1560,7 @@ def rodar_thompson_2d(config: ConfiguracaoDinamica2D | None = None, verbose=Fals
 
     return {
         "config": config,
+        "perfil_ambiente": config.perfil_ambiente,
         "estado_final": estado,
         "x_m": estado.x,
         "z_m": estado.z,

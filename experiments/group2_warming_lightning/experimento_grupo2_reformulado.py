@@ -14,6 +14,14 @@ O objetivo e separar dois fatores:
 1. aquecimento ambiental com qv inicial preservado;
 2. intensidade de um forcamento mecanico externo de levantamento.
 
+O Grupo 2 usa explicitamente o perfil ambiental de referencia do nucleo:
+
+    perfil_ambiente = "referencia"
+
+Esse perfil fica separado do perfil "microfisica", usado pelos Grupos 1 e 3.
+Assim, alteracoes feitas nos experimentos microfisicos nao redefinem
+silenciosamente o ambiente-base do Grupo 2.
+
 Nos casos WARM:
 
     T_warm(z) = T_ctrl(z) + DeltaT
@@ -134,6 +142,12 @@ from lightning import diagnosticar_relampagos_2d, resumir_diagnosticos_2d
 # 4. CONFIGURACAO COMUM DO GRUPO 2
 # ============================================================================
 
+# Perfil ambiental do Grupo 2.
+#
+# "referencia" recupera o sounding-base usado nos experimentos de iniciacao.
+# O perfil "microfisica" fica reservado aos Grupos 1 e 3.
+PERFIL_AMBIENTE_GRUPO2 = "referencia"
+
 # Aquecimento dos casos WARM.
 DELTA_T_WARM_K = 4.0
 
@@ -226,6 +240,7 @@ def criar_configuracao(
         delta_t_ambiente_k
         forc_dyn_amp_m_s2
 
+    O perfil ambiental permanece explicitamente fixo em "referencia".
     Todo o restante permanece fixo.
     """
 
@@ -241,6 +256,9 @@ def criar_configuracao(
         # Grupo 2 novo: sem bolha termodinamica.
         bolha_k=BOLHA_K_GRUPO2,
         bolha_qv_kgkg=BOLHA_QV_GRUPO2_KGKG,
+
+        # Ambiente-base proprio do Grupo 2.
+        perfil_ambiente=PERFIL_AMBIENTE_GRUPO2,
 
         # Aquecimento ambiental.
         delta_t_ambiente_k=float(delta_t_ambiente_k),
@@ -532,6 +550,7 @@ def executar_caso(
     print()
     print("=" * 78)
     print(f"INICIANDO CASO: {caso}")
+    print(f"Perfil ambiente   = {PERFIL_AMBIENTE_GRUPO2}")
     print(f"Delta T ambiente = {delta_t_ambiente_k:.3f} K")
     print(f"Forcamento dyn    = {forc_dyn_amp_m_s2:.6f} m/s2")
     print("qv ambiental      = preservado em relacao ao CTRL")
@@ -550,6 +569,14 @@ def executar_caso(
 
     resultado = rodar_thompson_2d(config, verbose=True)
 
+    perfil_resultado = resultado.get("perfil_ambiente", PERFIL_AMBIENTE_GRUPO2)
+    if perfil_resultado != PERFIL_AMBIENTE_GRUPO2:
+        raise RuntimeError(
+            "O nucleo retornou um perfil ambiental diferente do solicitado "
+            f"pelo Grupo 2: esperado={PERFIL_AMBIENTE_GRUPO2!r}, "
+            f"recebido={perfil_resultado!r}."
+        )
+
     diagnosticos = diagnosticar_relampagos_2d(resultado)
     resumo_lightning = resumir_diagnosticos_2d(diagnosticos)
 
@@ -562,6 +589,7 @@ def executar_caso(
 
     resumo = {
         "caso": caso,
+        "perfil_ambiente": PERFIL_AMBIENTE_GRUPO2,
         "delta_t_ambiente_k": float(delta_t_ambiente_k),
         "preservar_rh": False,
         "qv_inicial_preservado": True,
@@ -821,6 +849,7 @@ def modo_varredura(args):
             "forcamentos_testados_m_s2": forcamentos,
             "tempo_varredura_min": float(args.tempo_varredura),
             "delta_T_ambiente_K": 0.0,
+            "perfil_ambiente": PERFIL_AMBIENTE_GRUPO2,
             "preservar_rh": False,
             "bolha_k": BOLHA_K_GRUPO2,
             "bolha_qv_kgkg": BOLHA_QV_GRUPO2_KGKG,
@@ -1029,6 +1058,7 @@ def modo_final(args):
             "D0_m_s2": float(args.d0),
             "D1_m_s2": float(args.d1),
             "delta_T_WARM_K": float(DELTA_T_WARM_K),
+            "perfil_ambiente": PERFIL_AMBIENTE_GRUPO2,
             "preservar_rh": False,
             "qv_inicial_preservado": True,
             "bolha_k": BOLHA_K_GRUPO2,
@@ -1057,6 +1087,7 @@ def modo_final(args):
     print("=" * 78)
     print("MATRIZ FINAL DO GRUPO 2 CONCLUIDA")
     print("=" * 78)
+    print(f"Perfil ambiente = {PERFIL_AMBIENTE_GRUPO2}")
     print(f"D0 = {args.d0:.6f} m/s2")
     print(f"D1 = {args.d1:.6f} m/s2")
     print(f"Delta T WARM = {DELTA_T_WARM_K:.2f} K")
@@ -1096,10 +1127,10 @@ def construir_parser():
         "--forcamentos",
         type=float,
         nargs="+",
-        default=[0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80],
+        default=[0.50, 0.55, 0.60],
         help=(
             "Amplitudes do forcamento mecanico [m s-2]. "
-            "Padrao preliminar: 0.001 0.002 0.005 0.010 0.020."
+            "Padrao atual: 0.10 0.15 0.20."
         ),
     )
 
@@ -1159,6 +1190,7 @@ def main():
     print(f"Raiz do repositorio: {ROOT}")
     print(f"Saidas do Grupo 2:   {OUTPUT_BASE}")
     print(f"Commit atual:        {obter_commit_git()}")
+    print(f"Perfil ambiente:     {PERFIL_AMBIENTE_GRUPO2}")
     print("Grupo 2 novo: qv preservado, RH nao preservada, sem bolha termica.")
 
     if args.modo == "varredura":
