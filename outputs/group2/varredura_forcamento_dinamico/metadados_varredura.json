@@ -1,7 +1,13 @@
 {
-  "commit": "4cfe3179a6452f0417cb4f2b0b744884a08eff94",
+  "commit": "869f8793ac2844eb0e679365ecafb16a46ae7870",
   "forcamentos_testados_m_s2": [
-    0.5
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8
   ],
   "tempo_varredura_min": 40.0,
   "delta_T_ambiente_K": 0.0,
@@ -24,5 +30,13 @@
     "CFL_diff_menor_igual_0p5": true,
     "F3_e_LPI_nao_usados_na_selecao": true
   },
-  "candidatos_D0_m_s2": []
+  "candidatos_D0_m_s2": [
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8
+  ]
 }

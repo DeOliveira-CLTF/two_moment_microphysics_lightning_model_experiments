@@ -13,7 +13,7 @@
   "bolha_qv_kgkg": 0.0,
   "delta_t_ambiente_k": 0.0,
   "preservar_rh": false,
-  "forc_dyn_amp_m_s2": 0.5,
+  "forc_dyn_amp_m_s2": 0.65,
   "forc_dyn_x0_m": null,
   "forc_dyn_z0_m": 800.0,
   "forc_dyn_rx_m": 2000.0,
@@ -40,7 +40,7 @@
   "ciclo_diurno": false,
   "difusao": 25.0,
   "iteracoes_poisson": 120,
-  "cenario": "SCAN_D_0p5ms2",
+  "cenario": "SCAN_D_0p65ms2",
   "cfl_aviso": 0.8,
   "cfl_limite": 1.0,
   "abortar_se_cfl_violar": true
