@@ -13,4 +13,4 @@ desktop.ini
 ~$*.docx
 
 # Pytest
-.pytest_cache/
+.pytest_cache/*.npz
