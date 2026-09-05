@@ -1,0 +1,1 @@
+executar_grupo3.py --tempo 90 --dt 0.75 --bolha 3.0

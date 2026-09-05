@@ -221,18 +221,32 @@ def qsat_liq(T_k, p_hpa):
 
 
 def dtheta_dz_env(z_m):
+    """
+    Perfil de gradiente de temperatura potencial (dtheta/dz) modificado.
+    A estabilidade na camada limite foi mantida, mas a troposfera média 
+    foi ligeiramente desestabilizada (menor dtheta/dz) para aumentar o CAPE.
+    """
     return np.where(
         z_m < 1000.0,
-        3.0e-3,
-        np.where(z_m < 2000.0, 6.5e-3, np.where(z_m < 8500.0, 2.0e-3, 6.0e-3)),
+        2.5e-3, # Ligeiramente menos estável na camada limite (era 3.0e-3)
+        np.where(z_m < 3000.0, 4.0e-3, # Menos estável (era 6.5e-3), facilita a quebra da CIN
+                 np.where(z_m < 8500.0, 1.5e-3, # Troposfera média menos estável (era 2.0e-3) 
+                          6.0e-3)) # Estratosfera mantém forte estabilidade
     )
 
 
 def RH_env_profile(z_m):
+    """
+    Perfil de umidade relativa modificado.
+    A umidade em baixos níveis (abaixo de 2000m) foi aumentada 
+    significativamente para prevenir a evaporação prematura e o 
+    entranhamento de ar seco, garantindo sustento para o updraft.
+    """
     return np.where(
-        z_m < 1000.0,
-        0.70,
-        np.where(z_m < 2000.0, 0.35, np.where(z_m < 8500.0, 0.55, 0.20)),
+        z_m < 1500.0,
+        0.95,  # Aumentado de 0.85/0.35 para 0.95 (Quase saturado na baixa troposfera)
+        np.where(z_m < 4000.0, 0.70, # Aumentado significativamente nos níveis médios
+                 np.where(z_m < 8500.0, 0.40, 0.20))
     )
 
 

@@ -1,0 +1,7 @@
+caso=SEM-DEP
+commit=e8a56d830ae2585dbe270a3473004cef4cbaad2c
+python=3.13.5
+comando=executar_grupo3.py --tempo 90 --dt 0.75 --bolha 3.0
+status=OK
+cfl_max_adv=0.3891
+cfl_max_diff=0.003750
