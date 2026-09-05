@@ -520,56 +520,47 @@ def _velocidades_terminais(estado: EstadoDinamica2D):
     return Vtq_r, Vtn_r, Vtq_i, Vtn_i, Vtq_s, Vtn_s, Vtq_g, Vtn_g
 
 
-def diagnosticar_cfl(estado: EstadoDinamica2D, config: ConfiguracaoDinamica2D, u, w):
-    """Retorna numeros de Courant para adveccao/sedimentacao e difusao.
-
-    Para o esquema upwind 2D, usa-se a condicao suficiente
-
-        |u| dt/dx + |w_eff| dt/dz <= 1,
-
-    onde ``w_eff = w - Vt`` para hidrometeoros sedimentantes. Para a difusao
-    explicita 2D, monitora-se
-
-        K dt (1/dx^2 + 1/dz^2) <= 1/2.
-    """
-
-    velocidades_z = [w]
-    if config.microfisica == "thompson":
-        for vt in _velocidades_terminais(estado):
-            velocidades_z.append(w - vt)
-
-    cfl_adv = max(
-        float(
-            np.max(
-                np.abs(u) * config.dt / config.dx
-                + np.abs(vz) * config.dt / config.dz
-            )
-        )
-        for vz in velocidades_z
-    )
-    cfl_diff = float(
-        config.difusao
-        * config.dt
-        * (1.0 / config.dx**2 + 1.0 / config.dz**2)
-    )
-
-    return {
-        "adveccao": cfl_adv,
-        "difusao": cfl_diff,
-        "estavel_adveccao": cfl_adv <= config.cfl_limite,
-        "estavel_difusao": cfl_diff <= 0.5,
-    }
-
-
-def passo_dinamico(
+def diagnosticar_cfl(
     estado: EstadoDinamica2D,
     config: ConfiguracaoDinamica2D,
     u,
     w,
-    dtheta_dz_now,
-    dqv_dz_now,
 ):
+    """
+    Retorna numeros de Courant para adveccao/sedimentacao e difusao.
+
+    Para o esquema upwind 2D:
+
+        C = |u| dt/dx + |w_eff| dt/dz
+
+    onde:
+
+        w_eff = w
+
+    para campos nao sedimentantes, e
+
+        w_eff = w - Vt
+
+    para hidrometeoros sedimentantes.
+
+    Alem do CFL maximo, retorna a categoria que controla o CFL
+    e a localizacao espacial do maximo.
+    """
+
+    # ------------------------------------------------------------------
+    # Componentes que serao testados
+    # ------------------------------------------------------------------
+
+    componentes = [
+        {
+            "nome": "adveccao_sem_sedimentacao",
+            "w_eff": w,
+            "vt": np.zeros_like(w),
+        }
+    ]
+
     if config.microfisica == "thompson":
+
         (
             Vtq_r,
             Vtn_r,
@@ -580,92 +571,158 @@ def passo_dinamico(
             Vtq_g,
             Vtn_g,
         ) = _velocidades_terminais(estado)
-    else:
-        zero = np.zeros_like(estado.qc)
-        Vtq_r = Vtn_r = Vtq_i = Vtn_i = Vtq_s = Vtn_s = Vtq_g = Vtn_g = zero
 
-    thv = (
-        estado.thp
-        + 0.61 * THETA0 * estado.qvp
-        - THETA0 * (estado.qc + estado.qi + estado.qr + estado.qs + estado.qg)
-    )
-    dthv_dx = np.zeros_like(estado.thp)
-    dthv_dx[1:-1, :] = (thv[2:, :] - thv[:-2, :]) / (2.0 * config.dx)
-    buoy_torque = (G / THETA0) * dthv_dx
-
-    dzeta = (
-        upwind_advect(estado.zeta, u, w, config.dx, config.dz)
-        + buoy_torque
-        + config.difusao * laplacian(estado.zeta, config.dx, config.dz)
-    )
-    dthp = (
-        upwind_advect(estado.thp, u, w, config.dx, config.dz)
-        - w * dtheta_dz_now[None, :]
-        + config.difusao * laplacian(estado.thp, config.dx, config.dz)
-    )
-    dqvp = (
-        upwind_advect(estado.qvp, u, w, config.dx, config.dz)
-        - w * dqv_dz_now[None, :]
-        + config.difusao * laplacian(estado.qvp, config.dx, config.dz)
-    )
-    dqc = (
-        upwind_advect(estado.qc, u, w, config.dx, config.dz)
-        + config.difusao * laplacian(estado.qc, config.dx, config.dz)
-    )
-    dNc = (
-        upwind_advect(estado.Nc, u, w, config.dx, config.dz)
-        + config.difusao * laplacian(estado.Nc, config.dx, config.dz)
-    )
-
-    estado.zeta += config.dt * dzeta
-    estado.thp += config.dt * dthp
-    estado.qvp += config.dt * dqvp
-    estado.qc = np.maximum(estado.qc + config.dt * dqc, 0.0)
-    estado.Nc = np.maximum(estado.Nc + config.dt * dNc, 0.0)
-
-    if config.microfisica == "thompson":
-        pares = (
-            ("qr", "Nr", Vtq_r, Vtn_r),
-            ("qi", "Ni", Vtq_i, Vtn_i),
-            ("qs", "Ns", Vtq_s, Vtn_s),
-            ("qg", "Ng", Vtq_g, Vtn_g),
+        componentes.extend(
+            [
+                {
+                    "nome": "chuva_massa_qr",
+                    "w_eff": w - Vtq_r,
+                    "vt": Vtq_r,
+                },
+                {
+                    "nome": "chuva_numero_Nr",
+                    "w_eff": w - Vtn_r,
+                    "vt": Vtn_r,
+                },
+                {
+                    "nome": "gelo_massa_qi",
+                    "w_eff": w - Vtq_i,
+                    "vt": Vtq_i,
+                },
+                {
+                    "nome": "gelo_numero_Ni",
+                    "w_eff": w - Vtn_i,
+                    "vt": Vtn_i,
+                },
+                {
+                    "nome": "neve_massa_qs",
+                    "w_eff": w - Vtq_s,
+                    "vt": Vtq_s,
+                },
+                {
+                    "nome": "neve_numero_Ns",
+                    "w_eff": w - Vtn_s,
+                    "vt": Vtn_s,
+                },
+                {
+                    "nome": "graupel_massa_qg",
+                    "w_eff": w - Vtq_g,
+                    "vt": Vtq_g,
+                },
+                {
+                    "nome": "graupel_numero_Ng",
+                    "w_eff": w - Vtn_g,
+                    "vt": Vtn_g,
+                },
+            ]
         )
-        for qnome, nnome, Vtq, Vtn in pares:
-            qcampo = getattr(estado, qnome)
-            Ncampo = getattr(estado, nnome)
-            dq = upwind_advect(
-                qcampo, u, w - Vtq, config.dx, config.dz
-            ) + config.difusao * laplacian(qcampo, config.dx, config.dz)
-            dN = upwind_advect(
-                Ncampo, u, w - Vtn, config.dx, config.dz
-            ) + config.difusao * laplacian(Ncampo, config.dx, config.dz)
-            setattr(estado, qnome, np.maximum(qcampo + config.dt * dq, 0.0))
-            setattr(estado, nnome, np.maximum(Ncampo + config.dt * dN, 0.0))
 
-    estado.zeta = aplicar_bordas(estado.zeta, zero_grad=False)
-    for nome in (
-        "thp",
-        "qvp",
-        "qc",
-        "Nc",
-        "qr",
-        "Nr",
-        "qi",
-        "Ni",
-        "qs",
-        "Ns",
-        "qg",
-        "Ng",
-    ):
-        setattr(estado, nome, aplicar_bordas(getattr(estado, nome), zero_grad=True))
+    # ------------------------------------------------------------------
+    # Procura o maior CFL entre todos os componentes
+    # ------------------------------------------------------------------
 
-    estado.psi = poisson_jacobi(
-        estado.zeta,
-        estado.psi,
-        config.dx,
-        config.dz,
-        niter=config.iteracoes_poisson,
+    melhor = None
+
+    for componente in componentes:
+
+        w_eff = componente["w_eff"]
+
+        cfl_x = (
+            np.abs(u)
+            * config.dt
+            / config.dx
+        )
+
+        cfl_z = (
+            np.abs(w_eff)
+            * config.dt
+            / config.dz
+        )
+
+        campo_cfl = cfl_x + cfl_z
+
+        indice = np.unravel_index(
+            np.nanargmax(campo_cfl),
+            campo_cfl.shape,
+        )
+
+        ix, iz = indice
+
+        valor = float(
+            campo_cfl[ix, iz]
+        )
+
+        if melhor is None or valor > melhor["valor"]:
+
+            melhor = {
+                "valor": valor,
+                "nome": componente["nome"],
+                "ix": int(ix),
+                "iz": int(iz),
+                "x_m": float(estado.x[ix]),
+                "z_m": float(estado.z[iz]),
+                "u": float(u[ix, iz]),
+                "w": float(w[ix, iz]),
+                "vt": float(
+                    componente["vt"][ix, iz]
+                ),
+                "w_eff": float(
+                    w_eff[ix, iz]
+                ),
+                "cfl_x": float(
+                    cfl_x[ix, iz]
+                ),
+                "cfl_z": float(
+                    cfl_z[ix, iz]
+                ),
+            }
+
+    cfl_adv = melhor["valor"]
+
+    # ------------------------------------------------------------------
+    # CFL difusivo
+    # ------------------------------------------------------------------
+
+    cfl_diff = float(
+        config.difusao
+        * config.dt
+        * (
+            1.0 / config.dx**2
+            + 1.0 / config.dz**2
+        )
     )
+
+    # ------------------------------------------------------------------
+    # Retorno
+    # ------------------------------------------------------------------
+
+    return {
+        "adveccao": cfl_adv,
+        "difusao": cfl_diff,
+
+        "estavel_adveccao": (
+            cfl_adv <= config.cfl_limite
+        ),
+
+        "estavel_difusao": (
+            cfl_diff <= 0.5
+        ),
+
+        # Diagnosticos adicionais
+        "componente_max": melhor["nome"],
+        "ix_max": melhor["ix"],
+        "iz_max": melhor["iz"],
+        "x_max_m": melhor["x_m"],
+        "z_max_m": melhor["z_m"],
+
+        "u_local_m_s": melhor["u"],
+        "w_local_m_s": melhor["w"],
+        "vt_local_m_s": melhor["vt"],
+        "w_eff_local_m_s": melhor["w_eff"],
+
+        "cfl_x_local": melhor["cfl_x"],
+        "cfl_z_local": melhor["cfl_z"],
+    }
 
 
 def _novo_dicionario_frames():
@@ -692,7 +749,349 @@ def _novo_dicionario_frames():
         "cfl_adv": [],
         "cfl_diff": [],
     }
+def passo_dinamico(
+    estado: EstadoDinamica2D,
+    config: ConfiguracaoDinamica2D,
+    u,
+    w,
+    dtheta_dz_now,
+    dqv_dz_now,
+):
+    """
+    Avanca a dinamica e transporta os campos microfisicos por um passo de tempo.
 
+    Inclui:
+    - adveccao de vorticidade;
+    - forca de empuxo;
+    - adveccao de theta' e qv';
+    - difusao;
+    - transporte dos hidrometeoros;
+    - sedimentacao de chuva, gelo, neve e graupel;
+    - atualizacao da funcao de corrente.
+    """
+
+    # ------------------------------------------------------------------
+    # 1. Velocidades terminais dos hidrometeoros
+    # ------------------------------------------------------------------
+
+    if config.microfisica == "thompson":
+
+        (
+            Vtq_r,
+            Vtn_r,
+            Vtq_i,
+            Vtn_i,
+            Vtq_s,
+            Vtn_s,
+            Vtq_g,
+            Vtn_g,
+        ) = _velocidades_terminais(estado)
+
+    else:
+
+        zero = np.zeros_like(estado.qc)
+
+        Vtq_r = zero
+        Vtn_r = zero
+        Vtq_i = zero
+        Vtn_i = zero
+        Vtq_s = zero
+        Vtn_s = zero
+        Vtq_g = zero
+        Vtn_g = zero
+
+    # ------------------------------------------------------------------
+    # 2. Temperatura potencial virtual perturbada
+    # ------------------------------------------------------------------
+
+    thv = (
+        estado.thp
+        + 0.61 * THETA0 * estado.qvp
+        - THETA0
+        * (
+            estado.qc
+            + estado.qi
+            + estado.qr
+            + estado.qs
+            + estado.qg
+        )
+    )
+
+    # Gradiente horizontal.
+    dthv_dx = np.zeros_like(estado.thp)
+
+    dthv_dx[1:-1, :] = (
+        thv[2:, :]
+        - thv[:-2, :]
+    ) / (2.0 * config.dx)
+
+    # Torque associado ao empuxo.
+    buoy_torque = (
+        G / THETA0
+    ) * dthv_dx
+
+    # ------------------------------------------------------------------
+    # 3. Tendencia da vorticidade
+    # ------------------------------------------------------------------
+
+    dzeta = (
+        upwind_advect(
+            estado.zeta,
+            u,
+            w,
+            config.dx,
+            config.dz,
+        )
+        + buoy_torque
+        + config.difusao
+        * laplacian(
+            estado.zeta,
+            config.dx,
+            config.dz,
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # 4. Tendencia de theta'
+    # ------------------------------------------------------------------
+
+    dthp = (
+        upwind_advect(
+            estado.thp,
+            u,
+            w,
+            config.dx,
+            config.dz,
+        )
+        - w
+        * dtheta_dz_now[None, :]
+        + config.difusao
+        * laplacian(
+            estado.thp,
+            config.dx,
+            config.dz,
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # 5. Tendencia de qv'
+    # ------------------------------------------------------------------
+
+    dqvp = (
+        upwind_advect(
+            estado.qvp,
+            u,
+            w,
+            config.dx,
+            config.dz,
+        )
+        - w
+        * dqv_dz_now[None, :]
+        + config.difusao
+        * laplacian(
+            estado.qvp,
+            config.dx,
+            config.dz,
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # 6. Agua de nuvem
+    # ------------------------------------------------------------------
+
+    dqc = (
+        upwind_advect(
+            estado.qc,
+            u,
+            w,
+            config.dx,
+            config.dz,
+        )
+        + config.difusao
+        * laplacian(
+            estado.qc,
+            config.dx,
+            config.dz,
+        )
+    )
+
+    dNc = (
+        upwind_advect(
+            estado.Nc,
+            u,
+            w,
+            config.dx,
+            config.dz,
+        )
+        + config.difusao
+        * laplacian(
+            estado.Nc,
+            config.dx,
+            config.dz,
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # 7. Atualizacao dos campos nao sedimentantes
+    # ------------------------------------------------------------------
+
+    estado.zeta += (
+        config.dt * dzeta
+    )
+
+    estado.thp += (
+        config.dt * dthp
+    )
+
+    estado.qvp += (
+        config.dt * dqvp
+    )
+
+    estado.qc = np.maximum(
+        estado.qc
+        + config.dt * dqc,
+        0.0,
+    )
+
+    estado.Nc = np.maximum(
+        estado.Nc
+        + config.dt * dNc,
+        0.0,
+    )
+
+    # ------------------------------------------------------------------
+    # 8. Hidrometeoros sedimentantes
+    # ------------------------------------------------------------------
+
+    if config.microfisica == "thompson":
+
+        pares = (
+            ("qr", "Nr", Vtq_r, Vtn_r),
+            ("qi", "Ni", Vtq_i, Vtn_i),
+            ("qs", "Ns", Vtq_s, Vtn_s),
+            ("qg", "Ng", Vtq_g, Vtn_g),
+        )
+
+        for (
+            qnome,
+            nnome,
+            Vtq,
+            Vtn,
+        ) in pares:
+
+            qcampo = getattr(
+                estado,
+                qnome,
+            )
+
+            Ncampo = getattr(
+                estado,
+                nnome,
+            )
+
+            # Massa:
+            # velocidade vertical efetiva = w - Vtq
+            dq = (
+                upwind_advect(
+                    qcampo,
+                    u,
+                    w - Vtq,
+                    config.dx,
+                    config.dz,
+                )
+                + config.difusao
+                * laplacian(
+                    qcampo,
+                    config.dx,
+                    config.dz,
+                )
+            )
+
+            # Numero:
+            # velocidade vertical efetiva = w - Vtn
+            dN = (
+                upwind_advect(
+                    Ncampo,
+                    u,
+                    w - Vtn,
+                    config.dx,
+                    config.dz,
+                )
+                + config.difusao
+                * laplacian(
+                    Ncampo,
+                    config.dx,
+                    config.dz,
+                )
+            )
+
+            setattr(
+                estado,
+                qnome,
+                np.maximum(
+                    qcampo
+                    + config.dt * dq,
+                    0.0,
+                ),
+            )
+
+            setattr(
+                estado,
+                nnome,
+                np.maximum(
+                    Ncampo
+                    + config.dt * dN,
+                    0.0,
+                ),
+            )
+
+    # ------------------------------------------------------------------
+    # 9. Condicoes de contorno
+    # ------------------------------------------------------------------
+
+    estado.zeta = aplicar_bordas(
+        estado.zeta,
+        zero_grad=False,
+    )
+
+    for nome in (
+        "thp",
+        "qvp",
+        "qc",
+        "Nc",
+        "qr",
+        "Nr",
+        "qi",
+        "Ni",
+        "qs",
+        "Ns",
+        "qg",
+        "Ng",
+    ):
+
+        setattr(
+            estado,
+            nome,
+            aplicar_bordas(
+                getattr(
+                    estado,
+                    nome,
+                ),
+                zero_grad=True,
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # 10. Recupera psi a partir da nova vorticidade
+    # ------------------------------------------------------------------
+
+    estado.psi = poisson_jacobi(
+        estado.zeta,
+        estado.psi,
+        config.dx,
+        config.dz,
+        niter=config.iteracoes_poisson,
+    )
 
 def rodar_thompson_2d(config: ConfiguracaoDinamica2D | None = None, verbose=False):
     """Executa o modelo 2D acoplado a microfisica de dois momentos."""
@@ -751,9 +1150,63 @@ def rodar_thompson_2d(config: ConfiguracaoDinamica2D | None = None, verbose=Fals
                 f"K*dt*(1/dx^2+1/dz^2)={cfl['difusao']:.3f} > 0.5"
             )
         if not cfl["estavel_adveccao"] and config.abortar_se_cfl_violar:
+            print()
+            print("=" * 78)
+            print("DIAGNOSTICO DA VIOLACAO DE CFL")
+            print("=" * 78)
+
+            print(
+                f"tempo                  = {t_s:.1f} s "
+                f"({t_s / 60.0:.2f} min)"
+            )
+
+            print(
+                f"CFL total              = {cfl['adveccao']:.4f}"
+            )
+
+            print(
+                f"componente controlador = {cfl['componente_max']}"
+            )
+
+            print(
+                f"x                      = {cfl['x_max_m']:.1f} m"
+            )
+
+            print(
+                f"z                      = {cfl['z_max_m']:.1f} m"
+            )
+
+            print(
+                f"u local                = {cfl['u_local_m_s']:.3f} m/s"
+            )
+
+            print(
+                f"w local                = {cfl['w_local_m_s']:.3f} m/s"
+            )
+
+            print(
+                f"Vt local               = {cfl['vt_local_m_s']:.3f} m/s"
+            )
+
+            print(
+                f"w_eff = w - Vt         = {cfl['w_eff_local_m_s']:.3f} m/s"
+            )
+
+            print(
+                f"CFL horizontal         = {cfl['cfl_x_local']:.4f}"
+            )
+
+            print(
+                f"CFL vertical           = {cfl['cfl_z_local']:.4f}"
+            )
+
+            print("=" * 78)
+            print()
+
             raise RuntimeError(
                 f"CFL advectivo/sedimentacao violado em t={t_s:.1f}s: "
                 f"{cfl['adveccao']:.3f} > {config.cfl_limite:.3f}. "
+                f"Componente controlador: {cfl['componente_max']}. "
                 "Reduza dt e rode novamente."
             )
         if (
