@@ -1,0 +1,20 @@
+\begin{table}[htbp]
+\centering
+\caption{Diagnóstico de conservação de água dos experimentos finais. $\Delta B_{\mathrm{B,max}}$ e $\Delta B_{\rho,\mathrm{max}}$ representam a maior variação absoluta relativa dos orçamentos Boussinesq e ponderado por $\rho_0$, respectivamente. A precipitação é um proxy reconstruído offline a partir dos campos salvos.}
+\label{tab:conservacao_massa_todos_grupos}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llrrrrrr}
+\toprule
+Grupo & Caso & $T$ (min) & $\Delta B_{\mathrm{B,max}}$ (\%) & $\Delta B_{\mathrm{B,final}}$ (\%) & $\Delta B_{\rho,\mathrm{max}}$ (\%) & $\Delta B_{\rho,\mathrm{final}}$ (\%) & $P^{*}/M_0$ (\%) \\
+\midrule
+G2 & CTRL & 40 & 3.306 & -3.306 & 6.476 & -6.476 & 0.000 \\
+G2 & DYN\_PLUS & 40 & 4.839 & -4.839 & 9.948 & -9.839 & 0.000 \\
+G2 & WARM\_QV & 40 & 4.326 & -4.063 & 5.788 & -5.598 & 0.000 \\
+G2 & WARM\_QV\_DYN\_PLUS & 40 & 5.009 & -4.926 & 6.855 & -6.768 & 0.000 \\
+G2 & WARM\_RH & 40 & 4.165 & -4.151 & 9.225 & -9.071 & 0.000 \\
+G2 & WARM\_RH\_DYN\_PLUS & 40 & 5.262 & -5.262 & 11.852 & -11.852 & 0.000 \\
+\bottomrule
+\end{tabular}%
+}
+\begin{flushleft}\footnotesize $P^{*}$ representa a precipitação acumulada reconstruída diagnosticamente a partir dos fluxos sedimentantes de chuva, gelo de nuvem, neve e graupel no primeiro nível interno da grade. Como o fluxo é integrado apenas nos tempos salvos, esse termo deve ser interpretado como proxy de fechamento do orçamento. O diagnóstico Boussinesq é o critério primário para avaliar a deriva do transporte no núcleo incompressível.\end{flushleft}
+\end{table}

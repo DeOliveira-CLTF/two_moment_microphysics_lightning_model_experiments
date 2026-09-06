@@ -1,0 +1,1 @@
+C:\Users\teixe\anaconda3\python.exe experimento_grupo2_reformulado.py final --d0 0.55 --d1 0.65

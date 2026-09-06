@@ -1,0 +1,68 @@
+{
+  "D0_m_s2": 0.55,
+  "D1_m_s2": 0.65,
+  "delta_T_WARM_K": 4.0,
+  "perfil_ambiente": "referencia",
+  "modo_umidade_final": "ambas",
+  "bolha_k": 0.0,
+  "bolha_qv_kgkg": 0.0,
+  "geometria_forcamento": {
+    "x0_m": null,
+    "z0_m": 800.0,
+    "rx_m": 2000.0,
+    "rz_m": 700.0,
+    "inicio_s": 0.0,
+    "duracao_s": 900.0
+  },
+  "commit": "9a780438d637bf8e6a8890813094f356a7a7d91d",
+  "casos": {
+    "CTRL": {
+      "delta_t_ambiente_k": 0.0,
+      "forc_dyn_amp_m_s2": 0.55,
+      "nivel_forcamento": "D0",
+      "modo_umidade": "qv_fixo",
+      "regime_umidade": "referencia",
+      "descricao": "Ambiente de referencia com forcamento D0."
+    },
+    "DYN_PLUS": {
+      "delta_t_ambiente_k": 0.0,
+      "forc_dyn_amp_m_s2": 0.65,
+      "nivel_forcamento": "D1",
+      "modo_umidade": "qv_fixo",
+      "regime_umidade": "referencia",
+      "descricao": "Ambiente de referencia com forcamento D1."
+    },
+    "WARM_QV": {
+      "delta_t_ambiente_k": 4.0,
+      "forc_dyn_amp_m_s2": 0.55,
+      "nivel_forcamento": "D0",
+      "modo_umidade": "qv_fixo",
+      "regime_umidade": "qv fixo; RH variavel",
+      "descricao": "Aquecimento com qv inicial preservado e RH livre para diminuir, sob forcamento D0."
+    },
+    "WARM_QV_DYN_PLUS": {
+      "delta_t_ambiente_k": 4.0,
+      "forc_dyn_amp_m_s2": 0.65,
+      "nivel_forcamento": "D1",
+      "modo_umidade": "qv_fixo",
+      "regime_umidade": "qv fixo; RH variavel",
+      "descricao": "Aquecimento com qv inicial preservado e RH livre para diminuir, sob forcamento D1."
+    },
+    "WARM_RH": {
+      "delta_t_ambiente_k": 4.0,
+      "forc_dyn_amp_m_s2": 0.55,
+      "nivel_forcamento": "D0",
+      "modo_umidade": "rh_fixa",
+      "regime_umidade": "RH fixa; qv ajustado",
+      "descricao": "Aquecimento com RH inicial preservada e qv ajustado, sob forcamento D0."
+    },
+    "WARM_RH_DYN_PLUS": {
+      "delta_t_ambiente_k": 4.0,
+      "forc_dyn_amp_m_s2": 0.65,
+      "nivel_forcamento": "D1",
+      "modo_umidade": "rh_fixa",
+      "regime_umidade": "RH fixa; qv ajustado",
+      "descricao": "Aquecimento com RH inicial preservada e qv ajustado, sob forcamento D1."
+    }
+  }
+}

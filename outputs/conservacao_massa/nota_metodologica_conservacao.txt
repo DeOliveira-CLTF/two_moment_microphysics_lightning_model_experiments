@@ -1,0 +1,37 @@
+DIAGNOSTICO DE CONSERVACAO DE AGUA
+===================================
+
+Este arquivo acompanha a tabela gerada por:
+    gerar_tabela_conservacao_todos_grupos.py
+
+Diagnosticos
+------------
+1. Orcamento Boussinesq:
+   B_B(t) = integral qt dA + precipitacao_sedimentante_proxy
+
+2. Diagnostico ponderado por densidade:
+   B_rho(t) = integral rho0 qt dA + precipitacao_sedimentante_proxy
+
+Categorias de agua:
+    qt = qv + qc + qr + qi + qs + qg
+
+Categorias sedimentantes incluidas no fluxo:
+    qr, qi, qs, qg
+
+Nivel usado para reconstruir o fluxo:
+    k_base = 1
+
+A precipitacao e reconstruida offline a partir dos tempos salvos no NPZ
+por integracao trapezoidal. Portanto, nao e um acumulador exato calculado
+a cada passo de tempo do modelo.
+
+O orcamento Boussinesq deve ser considerado o diagnostico primario da deriva
+do transporte, pois o nucleo atual resolve div(v)=0. O diagnostico ponderado
+por rho0 e mantido como informacao fisica complementar.
+
+Tolerancia para classificacao:
+    nao definida
+
+Nao se recomenda definir uma tolerancia a posteriori apenas para classificar
+os experimentos como aprovados. O objetivo principal desta tabela e medir e
+comparar quantitativamente a deriva entre as configuracoes experimentais.
