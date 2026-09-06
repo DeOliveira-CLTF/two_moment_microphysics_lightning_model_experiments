@@ -56,11 +56,14 @@ Executando a partir de:
 
 pode-se usar:
 
-python plot_conveccao_A4.py --input "outputs/group2/varredura_forcamento_dinamico/SCAN_D_0p5ms2/resultados_SCAN_D_0p5ms2.npz" --output-prefix "outputs/group2/varredura_forcamento_dinamico/SCAN_D_0p5ms2/figura_artigo_SCAN_D_0p5ms2" --times 10 15 20 30 40
 
-python plot_conveccao_A4.py --input "outputs\group2\rh_fixa\varredura_forcamento_dinamico\WARM\SCAN_WARM_D_0p65ms2/resultados_SCAN_WARM_D_0p65ms2.npz" --output-prefix "outputs\group2\rh_fixavarredura_forcamento_dinamico\WARM\SCAN_WARM_D_0p65ms2/figura_artigo_SCAN_WARM_D_0p65ms2" --times 10 15 20 30 40
+python plot_conveccao_A4.py --input "outputs/group2/final_decomposto/CTRL/resultados_CTRL.npz" --output-prefix ""outputs/group2/final_decomposto/CTRL/figura_CTRL_allTimes" --times 10 15 20 30 40
 
+python plot_conveccao_A4.py --input "outputs/group2/final_decomposto/DYN_PLUS/resultados_DYN_PLUS.npz" --output-prefix "outputs/group2/final_decomposto/DYN_PLUS/figura_DYN_PLUS_allTimes" --times 10 15 20 30 40
 
+python plot_conveccao_A4.py --input "outputs/group2/final_decomposto/WARM_QV_DYN_PLUS/resultados_WARM_QV_DYN_PLUS.npz" --output-prefix "outputs/group2/final_decomposto/WARM_QV_DYN_PLUS/figura_WARM_QV_DYN_PLUS_allTimes" --times 10 15 20 30 40
+
+python plot_conveccao_A4.py --input "outputs/group2/final_decomposto/WARM_RH_DYN_PLUS/resultados_WARM_RH_DYN_PLUS.npz" --output-prefix "outputs/group2/final_decomposto/WARM_RH_DYN_PLUS/figura_WARM_RH_DYN_PLUS_allTimes" --times 10 15 20 30 40
 
 Os caminhos relativos sao automaticamente interpretados a partir da
 RAIZ DO REPOSITORIO.
