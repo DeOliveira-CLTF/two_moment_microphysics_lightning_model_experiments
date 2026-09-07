@@ -65,6 +65,11 @@ python plot_conveccao_A4.py --input "outputs/group2/final_decomposto/WARM_QV_DYN
 
 python plot_conveccao_A4.py --input "outputs/group2/final_decomposto/WARM_RH_DYN_PLUS/resultados_WARM_RH_DYN_PLUS.npz" --output-prefix "outputs/group2/final_decomposto/WARM_RH_DYN_PLUS/figura_WARM_RH_DYN_PLUS_allTimes" --times 10 15 20 30 40
 
+python plot_conveccao_A4.py --input "outputs/group2/final_decomposto/WARM_RH/resultados_WARM_RH.npz" --output-prefix "outputs/group2/final_decomposto/WARM_RH/figura_WARM_RH_allTimes" --times 10 15 20 30 40
+
+python plot_conveccao_A4.py --input "outputs/group2/final_decomposto/WARM_QV/resultados_WARM_QV.npz" --output-prefix "outputs/group2/final_decomposto/WARM_QV/figura_WARM_QV_allTimes" --times 10 15 20 30 40
+
+
 Os caminhos relativos sao automaticamente interpretados a partir da
 RAIZ DO REPOSITORIO.
 
